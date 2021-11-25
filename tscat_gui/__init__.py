@@ -8,6 +8,8 @@ from PySide2 import QtWidgets
 from PySide2 import QtCore
 from PySide2 import QtGui
 
+from .model import CatalogueModel
+
 
 class TSCatGUI(QtWidgets.QWidget):
     def __init__(self, parent=None):
@@ -27,6 +29,23 @@ class TSCatGUI(QtWidgets.QWidget):
 
         catalogues = QtWidgets.QTreeView()
         catalogues.setMinimumSize(300, 900)
+        catalogues.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+
+        catalogues.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+
+        def restore_triggered(checked: bool):
+            print("triggered")
+            for i in catalogues.selectedIndexes():
+                print(i.internalPointer())
+
+        def ctxMenu(pos: QtCore.QPoint):
+            context_menu = QtWidgets.QMenu(self)
+            action = QtWidgets.QAction(QtGui.QIcon.fromTheme('view-refresh'), "Restore", self)
+            action.triggered.connect(restore_triggered)
+            context_menu.addAction(action)
+            context_menu.exec_(catalogues.viewport().mapToGlobal(pos))
+
+        catalogues.customContextMenuRequested.connect(ctxMenu)
 
         splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
         splitter.addWidget(catalogues)
@@ -41,3 +60,7 @@ class TSCatGUI(QtWidgets.QWidget):
         layout.addWidget(toolbar)
         layout.addWidget(splitter)
         self.setLayout(layout)
+
+        self.catalogue_model = CatalogueModel(self)
+
+        catalogues.setModel(self.catalogue_model)
