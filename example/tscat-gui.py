@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
 from PySide2 import QtWidgets
-from PySide2 import QtCore
-from PySide2 import QtGui
 
 import sys
 
