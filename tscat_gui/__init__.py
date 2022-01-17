@@ -10,6 +10,8 @@ from PySide2 import QtGui
 
 from .model import CatalogueModel
 
+from .edit import CatalogueEditWidget
+
 
 class TSCatGUI(QtWidgets.QWidget):
     def __init__(self, parent=None):
@@ -18,18 +20,20 @@ class TSCatGUI(QtWidgets.QWidget):
         events = QtWidgets.QTableView()
         events.setMinimumSize(1000, 500)
 
-        details = QtWidgets.QWidget(self)
-        details.setMinimumHeight(400)
-        details_layout = QtWidgets.QGridLayout(details)
-        details_layout.setMargin(0)
+        details_placeholder = QtWidgets.QWidget()
+        details_placeholder.setMinimumHeight(400)
 
         splitter_right = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
         splitter_right.addWidget(events)
-        splitter_right.addWidget(details)
+        splitter_right.addWidget(details_placeholder)
+
+        self.catalogue_model = CatalogueModel(self)
 
         catalogues = QtWidgets.QTreeView()
         catalogues.setMinimumSize(300, 900)
         catalogues.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+
+        catalogues.setModel(self.catalogue_model)
 
         catalogues.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
@@ -47,6 +51,38 @@ class TSCatGUI(QtWidgets.QWidget):
 
         catalogues.customContextMenuRequested.connect(ctxMenu)
 
+        def sel_changed(selected: QtCore.QItemSelection, deselected: QtCore.QItemSelection):
+            print("selected:", [i for i in selected.indexes()])
+            if len(selected.indexes()) == 1:
+                print('edit-window-update')
+
+            # print("deselected:", [i for i in deselected.indexes()])
+
+        def current_model_data_changed(tl:  QtCore.QModelIndex, br: QtCore.QModelIndex, roles):
+            if QtCore.Qt.EditRole in roles:
+                self.catalogue_model.dataChanged.emit(
+                    self.current_selected_catalogue,
+                    self.current_selected_catalogue,
+                    roles)
+
+        def cur_changed(selected: QtCore.QModelIndex, deselected: QtCore.QModelIndex):
+            print("cur_changed", selected, deselected)
+            if selected.isValid():
+                self.current_selected_catalogue = selected
+
+                w = splitter_right.widget(1)
+                w.deleteLater()
+
+                splitter_right.replaceWidget(1, CatalogueEditWidget(selected, self))
+
+                # self.current_edit_widget.dataChanged.connect(current_model_data_changed)
+                # details.setModel(self.current_edit_model)
+
+        print('edit-window-update')
+
+        # catalogues.selectionModel().selectionChanged.connect(sel_changed)
+        catalogues.selectionModel().currentChanged.connect(cur_changed)
+
         splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
         splitter.addWidget(catalogues)
         splitter.addWidget(splitter_right)
@@ -60,7 +96,3 @@ class TSCatGUI(QtWidgets.QWidget):
         layout.addWidget(toolbar)
         layout.addWidget(splitter)
         self.setLayout(layout)
-
-        self.catalogue_model = CatalogueModel(self)
-
-        catalogues.setModel(self.catalogue_model)
