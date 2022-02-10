@@ -8,6 +8,7 @@ from PySide2 import QtWidgets
 from PySide2 import QtCore
 from PySide2 import QtGui
 
+import tscat
 from .model import CatalogueModel
 
 from .edit import CatalogueEditWidget
@@ -58,12 +59,11 @@ class TSCatGUI(QtWidgets.QWidget):
 
             # print("deselected:", [i for i in deselected.indexes()])
 
-        def current_model_data_changed(tl:  QtCore.QModelIndex, br: QtCore.QModelIndex, roles):
-            if QtCore.Qt.EditRole in roles:
-                self.catalogue_model.dataChanged.emit(
-                    self.current_selected_catalogue,
-                    self.current_selected_catalogue,
-                    roles)
+        def current_model_data_changed(catalogue: tscat.Catalogue):
+            self.catalogue_model.dataChanged.emit(
+                self.current_selected_catalogue,
+                self.current_selected_catalogue,
+                QtCore.Qt.EditRole)
 
         def cur_changed(selected: QtCore.QModelIndex, deselected: QtCore.QModelIndex):
             print("cur_changed", selected, deselected)
@@ -73,7 +73,9 @@ class TSCatGUI(QtWidgets.QWidget):
                 w = splitter_right.widget(1)
                 w.deleteLater()
 
-                splitter_right.replaceWidget(1, CatalogueEditWidget(selected, self))
+                new_edit = CatalogueEditWidget(selected.internalPointer(), self)
+                new_edit.valuesChanged.connect(current_model_data_changed)
+                splitter_right.replaceWidget(1, new_edit)
 
                 # self.current_edit_widget.dataChanged.connect(current_model_data_changed)
                 # details.setModel(self.current_edit_model)
@@ -82,6 +84,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
         # catalogues.selectionModel().selectionChanged.connect(sel_changed)
         catalogues.selectionModel().currentChanged.connect(cur_changed)
+        catalogues.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
 
         splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
         splitter.addWidget(catalogues)
@@ -92,6 +95,10 @@ class TSCatGUI(QtWidgets.QWidget):
 
         toolbar = QtWidgets.QToolBar()
         toolbar.addAction(QtWidgets.QAction(QtGui.QIcon.fromTheme('folder-new'), "Create Catalogue", self))
+
+        action = QtWidgets.QAction(QtGui.QIcon.fromTheme('document-save'), "Save To Disk", self)
+        action.triggered.connect(lambda x: tscat.save())
+        toolbar.addAction(action)
 
         layout.addWidget(toolbar)
         layout.addWidget(splitter)
