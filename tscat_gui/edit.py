@@ -6,6 +6,38 @@ import tscat
 import datetime as dt
 
 
+class _IntDelegate(QtWidgets.QSpinBox):
+    def __init__(self, value: int, parent: QtWidgets.QWidget = None):
+        super().__init__(parent)
+        self.setRange(-2 ** 31, 2 ** 31 - 1)
+        self.setValue(value)
+
+
+class _FloatDelegate(QtWidgets.QDoubleSpinBox):
+    def __init__(self, value: float, parent: QtWidgets.QWidget = None):
+        super().__init__(parent)
+        self.setValue(value)
+        self.setRange(float('-inf'), float('inf'))
+
+
+class _BoolDelegate(QtWidgets.QCheckBox):
+    def __init__(self, value: float, parent: QtWidgets.QWidget = None):
+        super().__init__(parent)
+        self.setChecked(value)
+
+
+_delegate_widget_class_factory = {
+    'uuid': QtWidgets.QLabel,
+
+    int: _IntDelegate,
+    str: QtWidgets.QLineEdit,
+    float: _FloatDelegate,
+    list: EditableKeywordListWidget,
+    bool: _BoolDelegate,
+    dt.datetime: QtWidgets.QDateTimeEdit,
+}
+
+
 class AttributeGroupBox(QtWidgets.QGroupBox):
     def __init__(self,
                  title: str,
@@ -22,28 +54,12 @@ class AttributeGroupBox(QtWidgets.QGroupBox):
         for row, attr in enumerate(attributes):
             layout.addWidget(QtWidgets.QLabel(attr.title()), row, 0)
             value = catalogue.__dict__[attr]
-            if type(value) == str:
-                layout.addWidget(QtWidgets.QLineEdit(value), row, 1)
-            elif type(value) == float:
-                sb = QtWidgets.QDoubleSpinBox()
-                sb.setValue(value)
-                sb.setRange(float('-inf'), float('inf'))
-                layout.addWidget(sb, row, 1)
-            elif type(value) == int:
-                sb = QtWidgets.QSpinBox()
-                sb.setRange(-2 ** 31, 2 ** 31 - 1)
-                sb.setValue(value)
-                layout.addWidget(sb, row, 1)
-            elif type(value) == list:
-                layout.addWidget(EditableKeywordListWidget(value), row, 1)
-            elif type(value) == bool:
-                cb = QtWidgets.QCheckBox()
-                cb.setChecked(value)
-                layout.addWidget(cb, row, 1)
-            elif type(value) == dt.datetime:
-                layout.addWidget(QtWidgets.QDateTimeEdit(value), row, 1)
+
+            if attr in _delegate_widget_class_factory:
+                cls = _delegate_widget_class_factory[attr]
             else:
-                layout.addWidget(QtWidgets.QLabel(f'TODO {type(value)} {value}'), row, 1)
+                cls = _delegate_widget_class_factory.get(type(value), QtWidgets.QLabel)
+            layout.addWidget(cls(value), row, 1)
 
         self.setLayout(layout)
 
