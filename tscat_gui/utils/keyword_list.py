@@ -29,7 +29,12 @@ class _Keyword(QtWidgets.QFrame):
             self.setMargin(1)
             self.setObjectName('DeleteLabel')
             self.setStyleSheet(
-                "#DeleteLabel { border-radius: 5px; background: #444; min-width: 10px; min-height: 10px; }")
+                f"""#DeleteLabel {{
+                    border-radius: 5px;
+                    background: {self.palette().dark().color().name()};
+                    min-width: 10px;
+                    min-height: 10px;
+                }}""")
 
         def enterEvent(self, event: QtCore.QEvent) -> None:
             self.setText('✖')
@@ -52,7 +57,10 @@ class _Keyword(QtWidgets.QFrame):
         self.tag_list = tag_list
 
         self.setObjectName('OneKeyword')
-        self.setStyleSheet("#OneKeyword { border-radius: 15px; background: #999; }")
+        self.setStyleSheet(f"""#OneKeyword {{
+                border-radius: 15px;
+                background: {self.palette().mid().color().name()};
+            }}""")
 
         self.delete_label = _Keyword.DeleteLabel()
         self.delete_label.clicked.connect(lambda: self.closed.emit(self))
