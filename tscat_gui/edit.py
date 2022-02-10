@@ -26,8 +26,15 @@ class _BoolDelegate(QtWidgets.QCheckBox):
         self.setChecked(value)
 
 
+class _UuidLabelDelegate(QtWidgets.QLabel):
+    def __init__(self, value: str, parent: QtWidgets.QWidget = None):
+        super().__init__(value, parent)
+        self.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+
+
+
 _delegate_widget_class_factory = {
-    'uuid': QtWidgets.QLabel,
+    'uuid': _UuidLabelDelegate,
 
     int: _IntDelegate,
     str: QtWidgets.QLineEdit,
