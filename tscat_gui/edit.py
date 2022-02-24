@@ -78,6 +78,10 @@ _type_name = {
     'Word List': list[str],
 }
 
+_type_name_initial_value = {
+    'DateTime': lambda: dt.datetime.now()
+}
+
 
 class AttributesGroupBox(QtWidgets.QGroupBox):
     valuesChanged = QtCore.Signal()
@@ -228,8 +232,10 @@ class CustomAttributesGroupBox(AttributesGroupBox):
 
         name = name.format(i)
 
-        self.entity.__setattr__(name.format(i),
-                                _type_name[self.type_combobox.itemText(self.type_combobox.currentIndex())]())
+        type_name = self.type_combobox.itemText(self.type_combobox.currentIndex())
+        default = _type_name_initial_value.get(type_name, _type_name[type_name])()
+
+        self.entity.__setattr__(name.format(i), default)
 
         self.setup()
 
