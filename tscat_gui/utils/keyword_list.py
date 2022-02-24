@@ -65,6 +65,12 @@ class _Keyword(EditableLabel):
         self.layout.addWidget(self.delete_label)
         self.layout.setMargin(5)
 
+        self.setObjectName('OneKeyword')
+        self.setStyleSheet(f"""#OneKeyword {{
+                border-radius: 15px;
+                background: {self.palette().mid().color().name()};
+            }}""")
+
     def edit(self):
         super().edit()
 
