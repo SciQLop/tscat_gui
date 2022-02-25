@@ -14,7 +14,7 @@ from .model import CatalogueModel
 
 from .edit import EntityEditWidget
 
-from .undo import stack
+from .undo import stack, NewCatalogue
 
 from .utils.helper import get_entity_from_uuid_safe
 
@@ -101,7 +101,14 @@ class TSCatGUI(QtWidgets.QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         toolbar = QtWidgets.QToolBar()
-        toolbar.addAction(QtWidgets.QAction(QtGui.QIcon.fromTheme('folder-new'), "Create Catalogue", self))
+
+        action = QtWidgets.QAction(QtGui.QIcon.fromTheme('folder-new'), "Create Catalogue", self)
+
+        def new_catalogue():
+            stack.push(NewCatalogue(self.catalogue_model))
+
+        action.triggered.connect(new_catalogue)
+        toolbar.addAction(action)
 
         action = QtWidgets.QAction(QtGui.QIcon.fromTheme('document-save'), "Save To Disk", self)
 
@@ -127,19 +134,20 @@ class TSCatGUI(QtWidgets.QWidget):
         self.setLayout(layout)
 
     def select(self, entity_uuid: str, catalogue_uuid: str = None) -> None:
-        entity = get_entity_from_uuid_safe(entity_uuid)
+        if entity_uuid is not None:
+            entity = get_entity_from_uuid_safe(entity_uuid)
 
-        if type(entity) is tscat.Catalogue:
-            print('select catalogue', entity.name)
-            index = self.catalogue_model.index_from_uuid(entity.uuid)
-            if index.isValid():
-                self.catalogues.setCurrentIndex(index)
-                self.edit.setup()
-                print('update edit')
+            if type(entity) is tscat.Catalogue:
+                print('select catalogue', entity.name)
+                index = self.catalogue_model.index_from_uuid(entity.uuid)
+                if index.isValid():
+                    self.catalogues.setCurrentIndex(index)
+                    self.edit.setup()
+                    print('update edit')
+                else:
+                    print('catalogue not in model')
             else:
-                print('catalogue not in model')
-        else:
-            print('select event', entity)
+                print('select event', entity)
 
         if catalogue_uuid:
             catalogue = get_entity_from_uuid_safe(catalogue_uuid)

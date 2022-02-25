@@ -46,8 +46,30 @@ class CatalogueModel(QtCore.QAbstractItemModel):
             return QtCore.QModelIndex()
         index = self.createIndex(row, column, self.uuids[row])
         self.uuid_index[self.uuids[row]] = index
-        print(index)
         return index
 
     def index_from_uuid(self, uuid: str) -> QtCore.QModelIndex:
         return self.uuid_index[uuid]
+
+    def create(self, name='New Catalogue', author='Author', **kwargs) -> tscat.Catalogue:
+        row_index = self.rowCount()
+
+        self.beginInsertRows(QtCore.QModelIndex(), row_index, row_index + 1)
+        catalogue = tscat.Catalogue(name, author=author, **kwargs)
+        print(catalogue, catalogue.uuid)
+        self.uuids += [catalogue.uuid]
+        self.uuid_index[catalogue.uuid] = self.index(row_index, 0)
+        self.endInsertRows()
+
+        return catalogue
+
+    def delete(self, uuid: str):
+        row_index = self.index_from_uuid(uuid).row()
+        self.beginRemoveRows(QtCore.QModelIndex(), row_index, row_index + 1)
+
+        catalogue = get_entity_from_uuid_safe(uuid)
+        catalogue.remove(permanently=True)
+
+        del self.uuid_index[uuid]
+        self.uuids.remove(uuid)
+        self.endRemoveRows()
