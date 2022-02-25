@@ -182,7 +182,7 @@ class _AttributeNameValidator(QtGui.QValidator):
 class CustomAttributesGroupBox(AttributesGroupBox):
 
     def create_label(self, text: str):
-        attrs = list(self.entity.variable_attributes_as_dict().keys())
+        attrs = list(self.entity.variable_attributes_as_dict().keys()) + self.entity._fixed_keys
         attrs.remove(text)
 
         name = EditableLabel(text, _AttributeNameValidator(list(attrs)))
@@ -208,8 +208,6 @@ class CustomAttributesGroupBox(AttributesGroupBox):
             but.setText('✖')
             but.clicked.connect(lambda attr=attr, x=False: self._delete(attr))
             layout.addWidget(but, row, 2)
-
-        # self.regex_validator = QtGui.QRegularExpressionValidator(_tag_validation_regex)
 
         new_section_layout = QtWidgets.QHBoxLayout()
         new_section_layout.setMargin(0)
