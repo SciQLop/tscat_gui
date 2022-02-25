@@ -3,6 +3,8 @@ from PySide2 import QtCore, QtWidgets, QtGui
 from .utils.keyword_list import EditableKeywordListWidget
 from .utils.editable_label import EditableLabel
 
+from .undo import stack, NewAttribute, RenameAttribute, DeleteAttribute, SetAttributeValue
+
 from typing import Union
 
 import tscat
@@ -101,6 +103,7 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
 
     def setup(self, attributes: list[str]):
 
+        # clear layout, destroy all widgets
         layout = self.layout()
         if layout:
             while True:
@@ -138,11 +141,15 @@ class FixedAttributesGroupBox(AttributesGroupBox):
     def __init__(self, entity: Union[tscat.Catalogue, tscat.Event], parent: QtWidgets.QWidget = None):
         super().__init__("Global", entity, parent)
 
+        self.setup()
+
+    def setup(self):
         fixed_attributes = self.entity._fixed_keys[:]
+
         if 'predicate' in fixed_attributes:
             fixed_attributes.remove('predicate')
 
-        self.setup(fixed_attributes)
+        super().setup(fixed_attributes)
 
 
 _valid_attribute_name_re = re.compile(r'^[A-Za-z][A-Za-z_0-9]*$')
@@ -220,8 +227,7 @@ class CustomAttributesGroupBox(AttributesGroupBox):
         layout.addWidget(widget, row, 1)
 
     def _delete(self, attr):
-        self.entity.__delattr__(attr)
-        self.setup()
+        stack.push(DeleteAttribute(self.entity, attr))
 
     def _new(self):
         name = 'attribute{}'
@@ -235,9 +241,10 @@ class CustomAttributesGroupBox(AttributesGroupBox):
         type_name = self.type_combobox.itemText(self.type_combobox.currentIndex())
         default = _type_name_initial_value.get(type_name, _type_name[type_name])()
 
-        self.entity.__setattr__(name.format(i), default)
+        stack.push(NewAttribute(self.entity, name, default))
 
-        self.setup()
+    def _attribute_name_changed(self, previous: str, text: str):
+        stack.push(RenameAttribute(self.entity, previous, text))
 
     def _attribute_name_is_changing(self, previous: str, text: str):
         # highlight the existing attribute which is using the same text as name
@@ -247,13 +254,6 @@ class CustomAttributesGroupBox(AttributesGroupBox):
         label = self.attribute_name_labels.get(text)
         if label and previous != text:
             self.attribute_name_labels[text].setStyleSheet('color: red')
-
-    def _attribute_name_changed(self, previous: str, text: str):
-        value = self.entity.__dict__[previous]
-        self.entity.__delattr__(previous)
-        self.entity.__setattr__(text, value)
-
-        self.setup()
 
 
 class CatalogueEditWidget(QtWidgets.QScrollArea):
@@ -267,13 +267,13 @@ class CatalogueEditWidget(QtWidgets.QScrollArea):
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(5, 5, 5, 5)
 
-        attributes = FixedAttributesGroupBox(self.catalogue)
-        attributes.valuesChanged.connect(lambda: self.valuesChanged.emit(self.catalogue))
-        layout.addWidget(attributes)
+        self.fixed_attributes = FixedAttributesGroupBox(self.catalogue)
+        self.fixed_attributes.valuesChanged.connect(lambda: self.valuesChanged.emit(self.catalogue))
+        layout.addWidget(self.fixed_attributes)
 
-        attributes = CustomAttributesGroupBox(self.catalogue)
-        attributes.valuesChanged.connect(lambda: self.valuesChanged.emit(self.catalogue))
-        layout.addWidget(attributes)
+        self.attributes = CustomAttributesGroupBox(self.catalogue)
+        self.attributes.valuesChanged.connect(lambda: self.valuesChanged.emit(self.catalogue))
+        layout.addWidget(self.attributes)
 
         layout.addStretch()
 
@@ -283,3 +283,7 @@ class CatalogueEditWidget(QtWidgets.QScrollArea):
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)
         self.setWidgetResizable(True)
         self.setWidget(widget)
+
+    def setup(self):
+        self.attributes.setup()
+        self.fixed_attributes.setup()
