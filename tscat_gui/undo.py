@@ -2,7 +2,9 @@ from PySide2 import QtWidgets
 
 from typing import Union
 
-import tscat
+from .model import CatalogueModel
+
+from .utils.helper import get_entity_from_uuid_safe
 
 
 class _UndoStack(QtWidgets.QUndoStack):
@@ -16,26 +18,29 @@ class _UndoStack(QtWidgets.QUndoStack):
 
 stack = _UndoStack()
 
+
 class _EntityBased(QtWidgets.QUndoCommand):
-    def __init__(self, entity: Union[tscat.Catalogue, tscat.Event], catalogue: tscat.Catalogue, parent=None):
+    def __init__(self, entity_uuid: str, catalogue_uuid: str, parent=None):
         super().__init__(parent)
 
-        self.entity = entity
-        self.catalogue = catalogue
+        self.entity_uuid = entity_uuid
+        self.catalogue_uuid = catalogue_uuid
 
     def redo(self) -> None:
         self._redo()
-        stack.main_widget.select(self.entity, self.catalogue)
+        stack.main_widget.select(self.entity_uuid, self.catalogue_uuid)
 
     def undo(self) -> None:
         self._undo()
-        stack.main_widget.select(self.entity, self.catalogue)
+        stack.main_widget.select(self.entity_uuid, self.catalogue_uuid)
 
 
 class NewAttribute(_EntityBased):
-    def __init__(self, entity: Union[tscat.Catalogue, tscat.Event], name: str, value,
-                 catalogue: tscat.Catalogue = None, parent=None):
-        super().__init__(entity, catalogue, parent)
+    def __init__(self, entity_uuid: str, name: str, value,
+                 catalogue_uuid: str = None, parent=None):
+        super().__init__(entity_uuid, catalogue_uuid, parent)
+
+        entity = get_entity_from_uuid_safe(entity_uuid)
 
         self.setText(f'Create attribute {name} in {entity.name}')
 
@@ -43,63 +48,74 @@ class NewAttribute(_EntityBased):
         self.value = value
 
     def _redo(self) -> None:
-        self.entity.__setattr__(self.name, self.value)
+        entity = get_entity_from_uuid_safe(self.entity_uuid)
+        entity.__setattr__(self.name, self.value)
 
     def _undo(self) -> None:
-        self.entity.__delattr__(self.name)
+        entity = get_entity_from_uuid_safe(self.entity_uuid)
+        entity.__delattr__(self.name)
 
 
 class RenameAttribute(_EntityBased):
-    def __init__(self, entity: Union[tscat.Catalogue, tscat.Event], old_name: str, new_name: str,
-                 catalogue: tscat.Catalogue = None, parent=None):
-        super().__init__(entity, catalogue, parent)
+    def __init__(self, entity_uuid: str, old_name: str, new_name: str,
+                 catalogue_uuid: str= None, parent=None):
+        super().__init__(entity_uuid, catalogue_uuid, parent)
 
+        entity = get_entity_from_uuid_safe(entity_uuid)
         self.setText(f'Rename attribute from {old_name} to {new_name} in {entity.name}')
 
         self.new_name = new_name
         self.old_name = old_name
 
     def _redo(self) -> None:
-        value = self.entity.__dict__[self.old_name]
-        self.entity.__delattr__(self.old_name)
-        self.entity.__setattr__(self.new_name, value)
+        entity = get_entity_from_uuid_safe(self.entity_uuid)
+        value = entity.__dict__[self.old_name]
+        entity.__delattr__(self.old_name)
+        entity.__setattr__(self.new_name, value)
 
     def _undo(self) -> None:
-        value = self.entity.__dict__[self.new_name]
-        self.entity.__delattr__(self.new_name)
-        self.entity.__setattr__(self.old_name, value)
+        entity = get_entity_from_uuid_safe(self.entity_uuid)
+        value = entity.__dict__[self.new_name]
+        entity.__delattr__(self.new_name)
+        entity.__setattr__(self.old_name, value)
 
 
 class DeleteAttribute(_EntityBased):
-    def __init__(self, entity: Union[tscat.Catalogue, tscat.Event], name: str,
-                 catalogue: tscat.Catalogue = None, parent=None):
-        super().__init__(entity, catalogue, parent)
+    def __init__(self, entity_uuid: str, name: str,
+                 catalogue_uuid: str = None, parent=None):
+        super().__init__(entity_uuid, catalogue_uuid, parent)
 
+        entity = get_entity_from_uuid_safe(self.entity_uuid)
         self.setText(f'Delete attribute {name} from {entity.name}')
 
         self.name = name
-        self.value = self.entity.__dict__[name]
+        self.value = entity.__dict__[name]
 
     def _redo(self) -> None:
-        self.entity.__delattr__(self.name)
+        entity = get_entity_from_uuid_safe(self.entity_uuid)
+        entity.__delattr__(self.name)
 
     def _undo(self) -> None:
-        self.entity.__setattr__(self.name, self.value)
+        entity = get_entity_from_uuid_safe(self.entity_uuid)
+        entity.__setattr__(self.name, self.value)
 
 
 class SetAttributeValue(_EntityBased):
-    def __init__(self, entity: Union[tscat.Catalogue, tscat.Event], name: str, value,
-                 catalogue: tscat.Catalogue = None, parent=None):
-        super().__init__(entity, catalogue, parent)
+    def __init__(self, entity_uuid: str, name: str, value,
+                 catalogue_uuid: str = None, parent=None):
+        super().__init__(entity_uuid, catalogue_uuid, parent)
 
+        entity = get_entity_from_uuid_safe(self.entity_uuid)
         self.setText(f'Change {name} to {value} in {entity.name}')
 
         self.name = name
-        self.previous_value = self.entity.__dict__[name]
+        self.previous_value = entity.__dict__[name]
         self.value = value
 
     def _redo(self) -> None:
-        self.entity.__setattr__(self.name, self.value)
+        entity = get_entity_from_uuid_safe(self.entity_uuid)
+        entity.__setattr__(self.name, self.value)
 
     def _undo(self) -> None:
-        self.entity.__setattr__(self.name, self.previous_value)
+        entity = get_entity_from_uuid_safe(self.entity_uuid)
+        entity.__setattr__(self.name, self.previous_value)

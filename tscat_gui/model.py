@@ -1,15 +1,16 @@
 from PySide2 import QtCore
 
 import tscat
-from tscat import get_catalogues
 from typing import Any
+
+from .utils.helper import get_entity_from_uuid_safe
 
 
 class CatalogueModel(QtCore.QAbstractItemModel):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.catalogues = get_catalogues()
+        self.uuids = [c.uuid for c in tscat.get_catalogues()]
         self.uuid_index = {}
 
     def headerData(self, section: int, orientation: QtCore.Qt.Orientation, role: int = QtCore.Qt.DisplayRole) -> Any:
@@ -25,7 +26,7 @@ class CatalogueModel(QtCore.QAbstractItemModel):
 
     def rowCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
         if not parent.isValid():  # root
-            return len(self.catalogues)
+            return len(self.uuids)
         return 0  # no children
 
     def flags(self, index: QtCore.QModelIndex) -> QtCore.Qt.ItemFlags:
@@ -35,17 +36,18 @@ class CatalogueModel(QtCore.QAbstractItemModel):
 
     def data(self, index: QtCore.QModelIndex, role: int = QtCore.Qt.DisplayRole) -> Any:
         if index.isValid() and role == QtCore.Qt.DisplayRole:
-            obj = index.internalPointer()
-            if isinstance(obj, tscat.Catalogue):
-                return obj.name
+            entity = get_entity_from_uuid_safe(index.internalPointer())
+            assert isinstance(entity, tscat.Catalogue)
+            return entity.name
         return None
 
     def index(self, row, column, parent=QtCore.QModelIndex()):
         if not self.hasIndex(row, column, parent):
             return QtCore.QModelIndex()
-        index = self.createIndex(row, column, self.catalogues[row])
-        self.uuid_index[self.catalogues[row].uuid] = index
+        index = self.createIndex(row, column, self.uuids[row])
+        self.uuid_index[self.uuids[row]] = index
+        print(index)
         return index
 
     def index_from_uuid(self, uuid: str) -> QtCore.QModelIndex:
-        return self.uuid_index.get(uuid, QtCore.QModelIndex())
+        return self.uuid_index[uuid]
