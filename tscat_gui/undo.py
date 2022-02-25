@@ -119,3 +119,19 @@ class SetAttributeValue(_EntityBased):
     def _undo(self) -> None:
         entity = get_entity_from_uuid_safe(self.entity_uuid)
         entity.__setattr__(self.name, self.previous_value)
+
+
+class NewCatalogue(_EntityBased):
+    def __init__(self, model: CatalogueModel, parent=None):
+        super().__init__(None, None, parent)
+        self.model = model
+        self.uuid = None
+
+    def _redo(self):
+        # the first time called it will create a new UUID
+        catalogue = self.model.create(uuid=self.uuid)
+        self.entity_uuid = self.uuid = catalogue.uuid
+
+    def _undo(self):
+        self.model.delete(self.entity_uuid)
+        self.entity_uuid = None
