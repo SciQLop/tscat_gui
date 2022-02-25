@@ -28,16 +28,19 @@ class _FloatDelegate(QtWidgets.QDoubleSpinBox):
 
 
 class _BoolDelegate(QtWidgets.QCheckBox):
-    valueChanged = QtCore.Signal(bool)
+    editingFinished = QtCore.Signal()
 
     def __init__(self, value: float, parent: QtWidgets.QWidget = None):
         super().__init__(parent)
         self.setChecked(value)
-        self.stateChanged.connect(lambda x: self.valueChanged.emit(x))
+        self.stateChanged.connect(lambda: self.editingFinished.emit())
+
+    def value(self) -> bool:
+        return self.isChecked()
 
 
 class _UuidLabelDelegate(QtWidgets.QLabel):
-    valueChanged = QtCore.Signal(str)  # never emitted
+    editingFinished = QtCore.Signal()  # never emitted
 
     def __init__(self, value: str, parent: QtWidgets.QWidget = None):
         super().__init__(value, parent)
@@ -45,19 +48,19 @@ class _UuidLabelDelegate(QtWidgets.QLabel):
 
 
 class _StrDelegate(QtWidgets.QLineEdit):
-    valueChanged = QtCore.Signal(str)
-
     def __init__(self, value: str, parent: QtWidgets.QWidget = None):
         super().__init__(value, parent)
-        self.textChanged.connect(lambda x: self.valueChanged.emit(x))
+
+    def value(self) -> str:
+        return self.text()
 
 
 class _DateTimeDelegate(QtWidgets.QDateTimeEdit):
-    valueChanged = QtCore.Signal(dt.datetime)
-
     def __init__(self, value: str, parent: QtWidgets.QWidget = None):
         super().__init__(value, parent)
-        self.dateTimeChanged.connect(lambda x: self.valueChanged.emit(x.toPython()))
+
+    def value(self) -> dt.datetime:
+        return self.dateTime().toPython()
 
 
 _delegate_widget_class_factory = {
@@ -128,13 +131,16 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
                 cls = _delegate_widget_class_factory.get(type(value), QtWidgets.QLabel)
 
             widget = cls(value)
-            widget.valueChanged.connect(lambda x, attr=attr: self._value_changed(attr, x))
+            widget.editingFinished.connect(lambda w=widget, a=attr: self._editing_finished(a, w.value()))
 
             layout.addWidget(widget, row, 1)
 
-    def _value_changed(self, attr, value):
-        self.entity.__setattr__(attr, value)
-        self.valuesChanged.emit()
+    def _editing_finished(self, attr, value):
+        if value != self.entity.__dict__[attr]:
+            print(f'{attr} {value}')
+            stack.push(SetAttributeValue(self.entity, attr, value))
+
+            self.valuesChanged.emit()
 
 
 class FixedAttributesGroupBox(AttributesGroupBox):
