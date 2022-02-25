@@ -10,6 +10,7 @@ class CatalogueModel(QtCore.QAbstractItemModel):
         super().__init__(parent)
 
         self.catalogues = get_catalogues()
+        self.uuid_index = {}
 
     def headerData(self, section: int, orientation: QtCore.Qt.Orientation, role: int = QtCore.Qt.DisplayRole) -> Any:
         if role == QtCore.Qt.DisplayRole:
@@ -42,4 +43,9 @@ class CatalogueModel(QtCore.QAbstractItemModel):
     def index(self, row, column, parent=QtCore.QModelIndex()):
         if not self.hasIndex(row, column, parent):
             return QtCore.QModelIndex()
-        return self.createIndex(row, column, self.catalogues[row])
+        index = self.createIndex(row, column, self.catalogues[row])
+        self.uuid_index[self.catalogues[row].uuid] = index
+        return index
+
+    def index_from_uuid(self, uuid: str) -> QtCore.QModelIndex:
+        return self.uuid_index.get(uuid, QtCore.QModelIndex())
