@@ -8,15 +8,15 @@ from PySide2 import QtWidgets
 from PySide2 import QtCore
 from PySide2 import QtGui
 
-from typing import Union
-
 import tscat
 
 from .model import CatalogueModel
 
-from .edit import CatalogueEditWidget
+from .edit import EntityEditWidget
 
 from .undo import stack
+
+from .utils.helper import get_entity_from_uuid_safe
 
 
 class TSCatGUI(QtWidgets.QWidget):
@@ -66,7 +66,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
             # print("deselected:", [i for i in deselected.indexes()])
 
-        def current_model_data_changed(catalogue: tscat.Catalogue):
+        def current_model_data_changed(uuid: str):
             self.catalogue_model.dataChanged.emit(
                 self.current_selected_catalogue,
                 self.current_selected_catalogue,
@@ -80,7 +80,7 @@ class TSCatGUI(QtWidgets.QWidget):
                 if self.edit:
                     self.edit.deleteLater()
 
-                self.edit = CatalogueEditWidget(selected.internalPointer(), self)
+                self.edit = EntityEditWidget(selected.internalPointer(), self)
                 self.edit.valuesChanged.connect(current_model_data_changed)
                 splitter_right.replaceWidget(1, self.edit)
 
@@ -126,7 +126,9 @@ class TSCatGUI(QtWidgets.QWidget):
         layout.addWidget(splitter)
         self.setLayout(layout)
 
-    def select(self, entity: Union[tscat.Catalogue, tscat.Event], catalogue: tscat.Catalogue) -> None:
+    def select(self, entity_uuid: str, catalogue_uuid: str = None) -> None:
+        entity = get_entity_from_uuid_safe(entity_uuid)
+
         if type(entity) is tscat.Catalogue:
             print('select catalogue', entity.name)
             index = self.catalogue_model.index_from_uuid(entity.uuid)
@@ -139,5 +141,7 @@ class TSCatGUI(QtWidgets.QWidget):
         else:
             print('select event', entity)
 
-        if catalogue:
+        if catalogue_uuid:
+            catalogue = get_entity_from_uuid_safe(catalogue_uuid)
+
             print("  and select catalogue", catalogue.name)

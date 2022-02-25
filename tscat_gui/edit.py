@@ -2,6 +2,7 @@ from PySide2 import QtCore, QtWidgets, QtGui
 
 from .utils.keyword_list import EditableKeywordListWidget
 from .utils.editable_label import EditableLabel
+from .utils.helper import get_entity_from_uuid_safe
 
 from .undo import stack, NewAttribute, RenameAttribute, DeleteAttribute, SetAttributeValue
 
@@ -94,17 +95,19 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
     def create_label(self, text: str):
         return QtWidgets.QLabel(text.title())
 
-    def __init__(self, title: str, entity: Union[tscat.Catalogue, tscat.Event], parent: QtWidgets.QWidget = None):
+    def __init__(self, title: str, uuid: str, parent: QtWidgets.QWidget = None):
         super().__init__(title, parent)
 
-        self.entity = entity
+        self.uuid = uuid
+        self.entity = None
         self.attribute_name_labels = {}
 
         layout = QtWidgets.QGridLayout()
         layout.setMargin(0)
         self.setLayout(layout)
 
-    def setup(self, attributes: list[str]):
+    def setup(self, attributes: list[str], entity: Union[tscat.Catalogue, tscat.Event]):
+        self.entity = entity
 
         # clear layout, destroy all widgets
         layout = self.layout()
@@ -137,25 +140,25 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
 
     def _editing_finished(self, attr, value):
         if value != self.entity.__dict__[attr]:
-            print(f'{attr} {value}')
-            stack.push(SetAttributeValue(self.entity, attr, value))
+            stack.push(SetAttributeValue(self.uuid, attr, value))
 
             self.valuesChanged.emit()
 
 
 class FixedAttributesGroupBox(AttributesGroupBox):
-    def __init__(self, entity: Union[tscat.Catalogue, tscat.Event], parent: QtWidgets.QWidget = None):
-        super().__init__("Global", entity, parent)
+    def __init__(self, uuid: str, parent: QtWidgets.QWidget = None):
+        super().__init__("Global", uuid, parent)
 
         self.setup()
 
     def setup(self):
-        fixed_attributes = self.entity._fixed_keys[:]
+        entity = get_entity_from_uuid_safe(self.uuid)
+        fixed_attributes = entity._fixed_keys[:]
 
         if 'predicate' in fixed_attributes:
             fixed_attributes.remove('predicate')
 
-        super().setup(fixed_attributes)
+        super().setup(fixed_attributes, entity)
 
 
 _valid_attribute_name_re = re.compile(r'^[A-Za-z][A-Za-z_0-9]*$')
@@ -191,22 +194,24 @@ class CustomAttributesGroupBox(AttributesGroupBox):
 
         return name
 
-    def __init__(self, entity: Union[tscat.Catalogue, tscat.Event], parent: QtWidgets.QWidget = None):
-        super().__init__("Custom", entity, parent)
+    def __init__(self, uuid: str, parent: QtWidgets.QWidget = None):
+        super().__init__("Custom", uuid, parent)
 
         self.setup()
 
     def setup(self):
-        attributes = sorted(self.entity.variable_attributes_as_dict().keys())
+        entity = get_entity_from_uuid_safe(self.uuid)
 
-        super().setup(attributes)
+        attributes = sorted(entity.variable_attributes_as_dict().keys())
+
+        super().setup(attributes, entity)
 
         layout = self.layout()
 
         for row, attr in enumerate(attributes):
             but = QtWidgets.QToolButton()
             but.setText('✖')
-            but.clicked.connect(lambda attr=attr, x=False: self._delete(attr))
+            but.clicked.connect(lambda a=attr, x=False: self._delete(a))
             layout.addWidget(but, row, 2)
 
         new_section_layout = QtWidgets.QHBoxLayout()
@@ -231,7 +236,7 @@ class CustomAttributesGroupBox(AttributesGroupBox):
         layout.addWidget(widget, row, 1)
 
     def _delete(self, attr):
-        stack.push(DeleteAttribute(self.entity, attr))
+        stack.push(DeleteAttribute(self.uuid, attr))
 
     def _new(self):
         name = 'attribute{}'
@@ -245,10 +250,10 @@ class CustomAttributesGroupBox(AttributesGroupBox):
         type_name = self.type_combobox.itemText(self.type_combobox.currentIndex())
         default = _type_name_initial_value.get(type_name, _type_name[type_name])()
 
-        stack.push(NewAttribute(self.entity, name, default))
+        stack.push(NewAttribute(self.uuid, name, default))
 
     def _attribute_name_changed(self, previous: str, text: str):
-        stack.push(RenameAttribute(self.entity, previous, text))
+        stack.push(RenameAttribute(self.uuid, previous, text))
 
     def _attribute_name_is_changing(self, previous: str, text: str):
         # highlight the existing attribute which is using the same text as name
@@ -260,23 +265,23 @@ class CustomAttributesGroupBox(AttributesGroupBox):
             self.attribute_name_labels[text].setStyleSheet('color: red')
 
 
-class CatalogueEditWidget(QtWidgets.QScrollArea):
-    valuesChanged = QtCore.Signal(tscat.Catalogue)
+class EntityEditWidget(QtWidgets.QScrollArea):
+    valuesChanged = QtCore.Signal(str)
 
-    def __init__(self, catalogue: tscat.Catalogue, parent=None):
+    def __init__(self, uuid: str, parent=None):
         super().__init__(parent)
 
-        self.catalogue = catalogue
+        self.uuid = uuid
 
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(5, 5, 5, 5)
 
-        self.fixed_attributes = FixedAttributesGroupBox(self.catalogue)
-        self.fixed_attributes.valuesChanged.connect(lambda: self.valuesChanged.emit(self.catalogue))
+        self.fixed_attributes = FixedAttributesGroupBox(self.uuid)
+        self.fixed_attributes.valuesChanged.connect(lambda: self.valuesChanged.emit(self.uuid))
         layout.addWidget(self.fixed_attributes)
 
-        self.attributes = CustomAttributesGroupBox(self.catalogue)
-        self.attributes.valuesChanged.connect(lambda: self.valuesChanged.emit(self.catalogue))
+        self.attributes = CustomAttributesGroupBox(self.uuid)
+        self.attributes.valuesChanged.connect(lambda: self.valuesChanged.emit(self.uuid))
         layout.addWidget(self.attributes)
 
         layout.addStretch()
