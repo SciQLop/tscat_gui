@@ -81,7 +81,7 @@ class _Keyword(EditableLabel):
 
 
 class EditableKeywordListWidget(QtWidgets.QWidget):
-    valueChanged = QtCore.Signal(list)
+    editingFinished = QtCore.Signal()
 
     def __init__(self, strings: list[str], completion_strings: list[str] = [], parent=None):
         super().__init__(parent)
@@ -116,8 +116,7 @@ class EditableKeywordListWidget(QtWidgets.QWidget):
             self._request_edit(tag)
 
     def _update_tag_texts(self):
-        tag_texts = [tag.text for tag in self.tags if tag.text]
-        self.valueChanged.emit(tag_texts)
+        self.editingFinished.emit()
 
     def _tag_text_updated(self, tag: _Keyword, text: str):
         if len(text) == 0:
@@ -137,3 +136,6 @@ class EditableKeywordListWidget(QtWidgets.QWidget):
         tag.deleteLater()
 
         self._update_tag_texts()
+
+    def value(self) -> list[str]:
+        return [tag.text for tag in self.tags if tag.text]
