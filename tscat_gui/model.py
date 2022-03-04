@@ -5,71 +5,190 @@ from typing import Any
 
 from .utils.helper import get_entity_from_uuid_safe
 
+UUIDRole = QtCore.Qt.UserRole + 1
+InTrashRole = QtCore.Qt.UserRole + 2
+
+
+class _Item:
+    def __init__(self, parent, items: list = []):
+        self._parent = parent
+        self._items = items
+
+    def flags(self):
+        return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable
+
+    def child(self, row: int):
+        return self._items[row]
+
+    def child_count(self) -> int:
+        return len(self._items)
+
+    def index_of(self, item):
+        return self._items.index(item)
+
+    def row(self):
+        return self._parent.index_of(self)
+
+    def parent(self):
+        return self._parent
+
+
+class _AllEvents(_Item):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+    def text(self):
+        return "All Events"
+
+
+class _Separator(_Item):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+    def text(self):
+        return '---'
+
+
+class _Catalogue(_Item):
+    def __init__(self, parent, uuid: str):
+        super().__init__(parent)
+
+        self._uuid = uuid
+
+    def text(self):
+        return get_entity_from_uuid_safe(self._uuid).name
+
+    def uuid(self):
+        return self._uuid
+
+
+def _get_catalogues(parent, removed_items: bool) -> list[_Catalogue]:
+    return [_Catalogue(parent, c.uuid)
+            for c in tscat.get_catalogues(removed_items=removed_items)]
+
+
+class _AllRemovedEvent(_Item):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+    def text(self):
+        return "All Removed Events"
+
+
+class _Trash(_Item):
+    def __init__(self, parent):
+        super().__init__(parent,
+                         [
+                             _AllRemovedEvent(self),
+                             *_get_catalogues(self, removed_items=True)
+                         ])
+        print(self._items)
+
+    def text(self):
+        return "Trash"
+
+    def flags(self):
+        return QtCore.Qt.ItemIsEnabled
+
+
+class _Root(_Item):
+    def __init__(self):
+        super().__init__(None,
+                         [
+                             _AllEvents(self),
+                             _Separator(self),
+                             *_get_catalogues(self, removed_items=False),
+                             _Separator(self),
+                             _Trash(self),
+                         ])
+
+    def trash_node(self):
+        return self._items[-1]
+
+    def item_from_uuid(self, uuid: str):
+        for item in self.items + self.items[-1].items:
+            if type(item) is _Catalogue and item.uuid() == uuid:
+                return item
+        return None
+
 
 class CatalogueModel(QtCore.QAbstractItemModel):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.uuids = [c.uuid for c in tscat.get_catalogues()]
-        self.uuid_index = {}
+        self._root = _Root()
 
-    def headerData(self, section: int, orientation: QtCore.Qt.Orientation, role: int = QtCore.Qt.DisplayRole) -> Any:
-        if role == QtCore.Qt.DisplayRole:
-            return "Catalogues"
-        return None
+    def reset(self):
+        self.beginResetModel()
+        self._root = _Root()
+        self.endResetModel()
+
+    def index(self, row, column, parent):
+        if not self.hasIndex(row, column, parent):
+            return QtCore.QModelIndex()
+
+        if not parent.isValid():
+            item = self._root
+        else:
+            item = parent.internalPointer()
+
+        child = item.child(row)
+        return self.createIndex(row, column, child)
 
     def parent(self, index: QtCore.QModelIndex) -> QtCore.QModelIndex:
-        return QtCore.QModelIndex()
+        if not index.isValid():
+            return QtCore.QModelIndex()
+
+        item: _Item = index.internalPointer()
+        parent: _Item = item.parent()
+        if parent == self._root:
+            return QtCore.QModelIndex()
+
+        return self.createIndex(parent.row(), 0, parent)
 
     def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
         return 1
 
     def rowCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
         if not parent.isValid():  # root
-            return len(self.uuids)
-        return 0  # no children
+            return self._root.child_count()
+        else:
+            return parent.internalPointer().child_count()
 
     def flags(self, index: QtCore.QModelIndex) -> QtCore.Qt.ItemFlags:
         if index.isValid():
-            return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable
+            return index.internalPointer().flags()
         return QtCore.Qt.NoItemFlags
 
     def data(self, index: QtCore.QModelIndex, role: int = QtCore.Qt.DisplayRole) -> Any:
-        if index.isValid() and role == QtCore.Qt.DisplayRole:
-            entity = get_entity_from_uuid_safe(index.internalPointer())
-            assert isinstance(entity, tscat.Catalogue)
-            return entity.name
+        if index.isValid():
+            item = index.internalPointer()
+        else:
+            item = self._root
+
+        if role == QtCore.Qt.DisplayRole:
+            return item.text()
+        elif role == UUIDRole:
+            if type(index.internalPointer()) == _Catalogue:
+                return index.internalPointer().uuid()
+        elif role == InTrashRole:
+            if type(index.internalPointer()) == _Catalogue:
+                return index.internalPointer().parent() == self._root.trash_node()
+
         return None
 
-    def index(self, row, column, parent=QtCore.QModelIndex()):
-        if not self.hasIndex(row, column, parent):
-            return QtCore.QModelIndex()
-        index = self.createIndex(row, column, self.uuids[row])
-        self.uuid_index[self.uuids[row]] = index
-        return index
+    def headerData(self, section: int, orientation: QtCore.Qt.Orientation, role: int = QtCore.Qt.DisplayRole) -> Any:
+        if role == QtCore.Qt.DisplayRole:
+            return "Catalogues"
+        return None
 
-    def index_from_uuid(self, uuid: str) -> QtCore.QModelIndex:
-        return self.uuid_index[uuid]
-
-    def create(self, name='New Catalogue', author='Author', **kwargs) -> tscat.Catalogue:
-        row_index = self.rowCount()
-
-        self.beginInsertRows(QtCore.QModelIndex(), row_index, row_index + 1)
-        catalogue = tscat.Catalogue(name, author=author, **kwargs)
-        print(catalogue, catalogue.uuid)
-        self.uuids += [catalogue.uuid]
-        self.uuid_index[catalogue.uuid] = self.index(row_index, 0)
-        self.endInsertRows()
-
-        return catalogue
-
-    def delete(self, uuid: str):
-        row_index = self.index_from_uuid(uuid).row()
-        self.beginRemoveRows(QtCore.QModelIndex(), row_index, row_index + 1)
-
-        catalogue = get_entity_from_uuid_safe(uuid)
-        catalogue.remove(permanently=True)
-
-        del self.uuid_index[uuid]
-        self.uuids.remove(uuid)
-        self.endRemoveRows()
+    def index_from_uuid(self, uuid: str, parent=QtCore.QModelIndex()) -> QtCore.QModelIndex:
+        for i in range(self.rowCount(parent)):
+            index = self.index(i, 0, parent)
+            if self.data(index, UUIDRole) == uuid:
+                return index
+            if self.rowCount(index) > 0:
+                result = self.index_from_uuid(uuid, index)
+                if result != QtCore.QModelIndex():
+                    return result
+        return QtCore.QModelIndex()

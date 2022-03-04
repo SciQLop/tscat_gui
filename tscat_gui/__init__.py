@@ -10,7 +10,7 @@ from PySide2 import QtGui
 
 import tscat
 
-from .model import CatalogueModel
+from .model import CatalogueModel, UUIDRole, InTrashRole
 
 from .edit import EntityEditWidget
 
@@ -28,8 +28,10 @@ class TSCatGUI(QtWidgets.QWidget):
         events = QtWidgets.QTableView()
         events.setMinimumSize(1000, 500)
 
-        self.edit = QtWidgets.QWidget()
-        self.edit.setMinimumHeight(400)
+        self.empty_edit = QtWidgets.QWidget()
+        self.empty_edit.setMinimumHeight(400)
+
+        self.edit = self.empty_edit
 
         splitter_right = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
         splitter_right.addWidget(events)
@@ -73,21 +75,21 @@ class TSCatGUI(QtWidgets.QWidget):
                 QtCore.Qt.EditRole)
 
         def cur_changed(selected: QtCore.QModelIndex, deselected: QtCore.QModelIndex):
-            print("cur_changed", selected, deselected)
+            # print("cur_changed", selected, deselected)
+            if self.edit:
+                self.edit.deleteLater()
+                self.edit = None
+
             if selected.isValid():
                 self.current_selected_catalogue = selected
+                uuid = self.catalogue_model.data(selected, UUIDRole)
+                in_trash = self.catalogue_model.data(selected, InTrashRole)
 
-                if self.edit:
-                    self.edit.deleteLater()
+                if uuid:
+                    self.edit = EntityEditWidget(uuid, self, in_trash)
+                    self.edit.valuesChanged.connect(current_model_data_changed)
+                    splitter_right.addWidget(self.edit)
 
-                self.edit = EntityEditWidget(selected.internalPointer(), self)
-                self.edit.valuesChanged.connect(current_model_data_changed)
-                splitter_right.replaceWidget(1, self.edit)
-
-                # self.current_edit_widget.dataChanged.connect(current_model_data_changed)
-                # details.setModel(self.current_edit_model)
-
-        print('edit-window-update')
 
         # self.catalogues.selectionModel().selectionChanged.connect(sel_changed)
         self.catalogues.selectionModel().currentChanged.connect(cur_changed)
@@ -105,7 +107,7 @@ class TSCatGUI(QtWidgets.QWidget):
         action = QtWidgets.QAction(QtGui.QIcon.fromTheme('folder-new'), "Create Catalogue", self)
 
         def new_catalogue():
-            stack.push(NewCatalogue(self.catalogue_model))
+            stack.push(NewCatalogue())
 
         action.triggered.connect(new_catalogue)
         toolbar.addAction(action)
@@ -134,6 +136,7 @@ class TSCatGUI(QtWidgets.QWidget):
         self.setLayout(layout)
 
     def select(self, entity_uuid: str, catalogue_uuid: str = None) -> None:
+        self.catalogue_model.reset()
         if entity_uuid is not None:
             entity = get_entity_from_uuid_safe(entity_uuid)
 
@@ -148,6 +151,10 @@ class TSCatGUI(QtWidgets.QWidget):
                     print('catalogue not in model')
             else:
                 print('select event', entity)
+        else:
+            if self.edit:
+                self.edit.deleteLater()
+                self.edit = None
 
         if catalogue_uuid:
             catalogue = get_entity_from_uuid_safe(catalogue_uuid)
