@@ -1,10 +1,8 @@
 from PySide2 import QtWidgets
 
-from typing import Union
-
-from .model import CatalogueModel
-
 from .utils.helper import get_entity_from_uuid_safe
+
+import tscat
 
 
 class _UndoStack(QtWidgets.QUndoStack):
@@ -58,7 +56,7 @@ class NewAttribute(_EntityBased):
 
 class RenameAttribute(_EntityBased):
     def __init__(self, entity_uuid: str, old_name: str, new_name: str,
-                 catalogue_uuid: str= None, parent=None):
+                 catalogue_uuid: str = None, parent=None):
         super().__init__(entity_uuid, catalogue_uuid, parent)
 
         entity = get_entity_from_uuid_safe(entity_uuid)
@@ -122,16 +120,19 @@ class SetAttributeValue(_EntityBased):
 
 
 class NewCatalogue(_EntityBased):
-    def __init__(self, model: CatalogueModel, parent=None):
+    def __init__(self, parent=None):
         super().__init__(None, None, parent)
-        self.model = model
+
+        self.setText('Create new Catalogue')
+
         self.uuid = None
 
     def _redo(self):
         # the first time called it will create a new UUID
-        catalogue = self.model.create(uuid=self.uuid)
+        catalogue = tscat.Catalogue("New Catalogue", author="Author", uuid=self.uuid)
         self.entity_uuid = self.uuid = catalogue.uuid
 
     def _undo(self):
-        self.model.delete(self.entity_uuid)
+        catalogue = get_entity_from_uuid_safe(self.uuid)
+        catalogue.remove(permanently=True)
         self.entity_uuid = None

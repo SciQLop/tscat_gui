@@ -268,7 +268,7 @@ class CustomAttributesGroupBox(AttributesGroupBox):
 class EntityEditWidget(QtWidgets.QScrollArea):
     valuesChanged = QtCore.Signal(str)
 
-    def __init__(self, uuid: str, parent=None):
+    def __init__(self, uuid: str, read_only: bool = False, parent=None):
         super().__init__(parent)
 
         self.uuid = uuid
