@@ -5,32 +5,24 @@ from .utils.helper import get_entity_from_uuid_safe
 import tscat
 
 
-class _UndoStack(QtWidgets.QUndoStack):
-    def __init__(self):
-        super().__init__(None)
-        self.main_widget = None
-
-    def setup(self, main_widget):
-        self.main_widget = main_widget
-
-
-stack = _UndoStack()
-
-
 class _EntityBased(QtWidgets.QUndoCommand):
     def __init__(self, entity_uuid: str, catalogue_uuid: str, parent=None):
         super().__init__(parent)
 
+        self.stack = None
         self.entity_uuid = entity_uuid
         self.catalogue_uuid = catalogue_uuid
 
     def redo(self) -> None:
         self._redo()
-        stack.main_widget.select(self.entity_uuid, self.catalogue_uuid)
+        self.stack.main_widget.select(self.entity_uuid, self.catalogue_uuid)
 
     def undo(self) -> None:
         self._undo()
-        stack.main_widget.select(self.entity_uuid, self.catalogue_uuid)
+        self.stack.main_widget.select(self.entity_uuid, self.catalogue_uuid)
+
+    def set_stack(self, stack: QtWidgets.QUndoStack) -> None:
+        self.stack = stack
 
 
 class NewAttribute(_EntityBased):

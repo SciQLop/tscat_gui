@@ -14,16 +14,27 @@ from .model import CatalogueModel, UUIDRole, InTrashRole
 
 from .edit import EntityEditWidget
 
-from .undo import stack, NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash
+from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash
 
 from .utils.helper import get_entity_from_uuid_safe
+
+
+class _UndoStack(QtWidgets.QUndoStack):
+    def __init__(self, main_widget: QtWidgets.QWidget):
+        super().__init__(None)
+
+        self.main_widget = main_widget
+
+    def push(self, cmd: QtWidgets.QUndoCommand) -> None:
+        cmd.set_stack(self)
+        super().push(cmd)
 
 
 class TSCatGUI(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        stack.setup(self)
+        self.undo_stack = _UndoStack(self)
 
         events = QtWidgets.QTableView()
         events.setMinimumSize(1000, 500)
@@ -89,7 +100,7 @@ class TSCatGUI(QtWidgets.QWidget):
                 in_trash = self.catalogue_model.data(selected, InTrashRole)
 
                 if uuid:
-                    self.edit = EntityEditWidget(uuid, self)
+                    self.edit = EntityEditWidget(uuid, self.undo_stack, in_trash, self)
                     self.edit.valuesChanged.connect(current_model_data_changed)
                     splitter_right.addWidget(self.edit)
 
@@ -112,7 +123,7 @@ class TSCatGUI(QtWidgets.QWidget):
         action = QtWidgets.QAction(QtGui.QIcon.fromTheme('folder-new'), "Create Catalogue", self)
 
         def new_catalogue():
-            stack.push(NewCatalogue())
+            self.undo_stack.push(NewCatalogue())
 
         action.triggered.connect(new_catalogue)
         toolbar.addAction(action)
@@ -121,18 +132,18 @@ class TSCatGUI(QtWidgets.QWidget):
 
         def save():
             tscat.save()
-            stack.setClean()
+            self.undo_stack.setClean()
 
         action.triggered.connect(save)
         toolbar.addAction(action)
         action.setEnabled(False)
-        stack.cleanChanged.connect(lambda state, a=action: a.setEnabled(not state))
+        self.undo_stack.cleanChanged.connect(lambda state, a=action: a.setEnabled(not state))
 
-        action = stack.createUndoAction(self)
+        action = self.undo_stack.createUndoAction(self)
         action.setIcon(QtGui.QIcon.fromTheme('edit-undo'))
         toolbar.addAction(action)
 
-        action = stack.createRedoAction(self)
+        action = self.undo_stack.createRedoAction(self)
         action.setIcon(QtGui.QIcon.fromTheme('edit-redo'))
         toolbar.addAction(action)
 
@@ -140,7 +151,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
         def trash():
             uuid = self.catalogue_model.data(self.current_selected_catalogue, UUIDRole)
-            stack.push(MoveEntityToTrash(uuid))
+            self.undo_stack.push(MoveEntityToTrash(uuid))
 
         action.triggered.connect(trash)
         action.setEnabled(False)
@@ -151,7 +162,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
         def restore():
             uuid = self.catalogue_model.data(self.current_selected_catalogue, UUIDRole)
-            stack.push(RestoreEntityFromTrash(uuid))
+            self.undo_stack.push(RestoreEntityFromTrash(uuid))
 
         action.triggered.connect(restore)
         action.setEnabled(False)
