@@ -14,7 +14,7 @@ from .model import CatalogueModel, UUIDRole, InTrashRole
 
 from .edit import EntityEditWidget
 
-from .undo import stack, NewCatalogue
+from .undo import stack, NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash
 
 from .utils.helper import get_entity_from_uuid_safe
 
@@ -80,16 +80,21 @@ class TSCatGUI(QtWidgets.QWidget):
                 self.edit.deleteLater()
                 self.edit = None
 
+            self.move_to_trash_action.setEnabled(False)
+            self.restore_from_trash_action.setEnabled(False)
+
             if selected.isValid():
                 self.current_selected_catalogue = selected
                 uuid = self.catalogue_model.data(selected, UUIDRole)
                 in_trash = self.catalogue_model.data(selected, InTrashRole)
 
                 if uuid:
-                    self.edit = EntityEditWidget(uuid, self, in_trash)
+                    self.edit = EntityEditWidget(uuid, self)
                     self.edit.valuesChanged.connect(current_model_data_changed)
                     splitter_right.addWidget(self.edit)
 
+                    self.move_to_trash_action.setEnabled(not in_trash)
+                    self.restore_from_trash_action.setEnabled(in_trash)
 
         # self.catalogues.selectionModel().selectionChanged.connect(sel_changed)
         self.catalogues.selectionModel().currentChanged.connect(cur_changed)
@@ -130,6 +135,28 @@ class TSCatGUI(QtWidgets.QWidget):
         action = stack.createRedoAction(self)
         action.setIcon(QtGui.QIcon.fromTheme('edit-redo'))
         toolbar.addAction(action)
+
+        action = QtWidgets.QAction(QtGui.QIcon.fromTheme('user-trash'), "Move to Trash", self)
+
+        def trash():
+            uuid = self.catalogue_model.data(self.current_selected_catalogue, UUIDRole)
+            stack.push(MoveEntityToTrash(uuid))
+
+        action.triggered.connect(trash)
+        action.setEnabled(False)
+        toolbar.addAction(action)
+        self.move_to_trash_action = action
+
+        action = QtWidgets.QAction(QtGui.QIcon.fromTheme('todo'), "Restore from Trash", self)
+
+        def restore():
+            uuid = self.catalogue_model.data(self.current_selected_catalogue, UUIDRole)
+            stack.push(RestoreEntityFromTrash(uuid))
+
+        action.triggered.connect(restore)
+        action.setEnabled(False)
+        toolbar.addAction(action)
+        self.restore_from_trash_action = action
 
         layout.addWidget(toolbar)
         layout.addWidget(splitter)

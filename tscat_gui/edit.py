@@ -185,7 +185,7 @@ class _AttributeNameValidator(QtGui.QValidator):
 class CustomAttributesGroupBox(AttributesGroupBox):
 
     def create_label(self, text: str):
-        attrs = list(self.entity.variable_attributes_as_dict().keys()) + self.entity._fixed_keys
+        attrs = list(self.entity.variable_attributes().keys()) + self.entity._fixed_keys
         attrs.remove(text)
 
         name = EditableLabel(text, _AttributeNameValidator(list(attrs)))
@@ -202,7 +202,7 @@ class CustomAttributesGroupBox(AttributesGroupBox):
     def setup(self):
         entity = get_entity_from_uuid_safe(self.uuid)
 
-        attributes = sorted(entity.variable_attributes_as_dict().keys())
+        attributes = sorted(entity.variable_attributes().keys())
 
         super().setup(attributes, entity)
 
@@ -268,7 +268,7 @@ class CustomAttributesGroupBox(AttributesGroupBox):
 class EntityEditWidget(QtWidgets.QScrollArea):
     valuesChanged = QtCore.Signal(str)
 
-    def __init__(self, uuid: str, read_only: bool = False, parent=None):
+    def __init__(self, uuid: str, parent=None):
         super().__init__(parent)
 
         self.uuid = uuid
