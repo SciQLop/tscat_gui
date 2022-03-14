@@ -136,3 +136,44 @@ class NewCatalogue(_EntityBased):
         catalogue = get_entity_from_uuid_safe(self.uuid)
         catalogue.remove(permanently=True)
         self.entity_uuid = None
+
+
+class MoveRestoreTrashedEntity(_EntityBased):
+    def __init__(self, entity_uuid: str, catalogue_uuid: str = None, parent=None):
+        super().__init__(entity_uuid, catalogue_uuid, parent)
+
+    def remove(self):
+        entity = get_entity_from_uuid_safe(self.entity_uuid)
+        entity.remove()
+
+    def restore(self):
+        entity = get_entity_from_uuid_safe(self.entity_uuid)
+        entity.restore()
+
+
+class MoveEntityToTrash(MoveRestoreTrashedEntity):
+    def __init__(self, entity_uuid: str, catalogue_uuid: str = None, parent=None):
+        super().__init__(entity_uuid, catalogue_uuid, parent)
+
+        entity = get_entity_from_uuid_safe(self.entity_uuid)
+        self.setText(f'Move {entity.name} to Trash')
+
+    def _redo(self):
+        self.remove()
+
+    def _undo(self):
+        self.restore()
+
+
+class RestoreEntityFromTrash(MoveRestoreTrashedEntity):
+    def __init__(self, entity_uuid: str, catalogue_uuid: str = None, parent=None):
+        super().__init__(entity_uuid, catalogue_uuid, parent)
+
+        entity = get_entity_from_uuid_safe(self.entity_uuid)
+        self.setText(f'Restore {entity.name} from Trash')
+
+    def _redo(self):
+        self.restore()
+
+    def _undo(self):
+        self.remove()
