@@ -14,7 +14,7 @@ from .model import CatalogueModel, UUIDRole, InTrashRole
 
 from .edit import EntityEditWidget
 
-from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash
+from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash, DeletePermanently
 
 from .utils.helper import get_entity_from_uuid_safe
 
@@ -93,6 +93,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
             self.move_to_trash_action.setEnabled(False)
             self.restore_from_trash_action.setEnabled(False)
+            self.delete_action.setEnabled(False)
 
             if selected.isValid():
                 self.current_selected_catalogue = selected
@@ -106,6 +107,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
                     self.move_to_trash_action.setEnabled(not in_trash)
                     self.restore_from_trash_action.setEnabled(in_trash)
+                    self.delete_action.setEnabled(True)
 
         # self.catalogues.selectionModel().selectionChanged.connect(sel_changed)
         self.catalogues.selectionModel().currentChanged.connect(cur_changed)
@@ -168,6 +170,17 @@ class TSCatGUI(QtWidgets.QWidget):
         action.setEnabled(False)
         toolbar.addAction(action)
         self.restore_from_trash_action = action
+
+        action = QtWidgets.QAction(QtGui.QIcon.fromTheme('edit-delete'), "Delete permanently", self)
+
+        def delete():
+            uuid = self.catalogue_model.data(self.current_selected_catalogue, UUIDRole)
+            self.undo_stack.push(DeletePermanently(uuid))
+
+        action.triggered.connect(delete)
+        action.setEnabled(False)
+        toolbar.addAction(action)
+        self.delete_action = action
 
         layout.addWidget(toolbar)
         layout.addWidget(splitter)

@@ -169,3 +169,26 @@ class RestoreEntityFromTrash(MoveRestoreTrashedEntity):
 
     def _undo(self):
         self.remove()
+
+
+class DeletePermanently(_EntityBased):
+    def __init__(self, entity_uuid: str, catalogue_uuid: str = None, parent=None):
+        super().__init__(entity_uuid, catalogue_uuid, parent)
+        self.deleted_entity_data = None
+        self.entity_type = None
+
+    def _redo(self):
+        entity = get_entity_from_uuid_safe(self.entity_uuid)
+
+        self.entity_type = type(entity)
+        self.deleted_entity_data = {
+            k: entity.__dict__[k] for k in list(entity.fixed_attributes().keys()) +
+                                           list(entity.variable_attributes().keys())
+        }
+
+        entity.remove(permanently=True)
+        self.entity_uuid = None
+
+    def _undo(self):
+        e = self.entity_type(**self.deleted_entity_data)
+        self.entity_uuid = e.uuid
