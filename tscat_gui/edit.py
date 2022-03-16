@@ -154,7 +154,7 @@ class FixedAttributesGroupBox(AttributesGroupBox):
 
     def setup(self):
         entity = get_entity_from_uuid_safe(self.uuid)
-        fixed_attributes = entity._fixed_keys[:]
+        fixed_attributes = list(entity.fixed_attributes().keys())
 
         if 'predicate' in fixed_attributes:
             fixed_attributes.remove('predicate')
@@ -186,7 +186,8 @@ class _AttributeNameValidator(QtGui.QValidator):
 class CustomAttributesGroupBox(AttributesGroupBox):
 
     def create_label(self, text: str):
-        attrs = list(self.entity.variable_attributes().keys()) + self.entity._fixed_keys
+        attrs = list(self.entity.variable_attributes().keys()) + \
+                list(self.entity.fixed_attributes().keys())
         attrs.remove(text)
 
         name = EditableLabel(text, _AttributeNameValidator(list(attrs)))
