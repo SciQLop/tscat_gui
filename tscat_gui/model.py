@@ -4,9 +4,9 @@ import tscat
 from typing import Any
 
 from .utils.helper import get_entity_from_uuid_safe
+from .state import AppState
 
 UUIDRole = QtCore.Qt.UserRole + 1
-InTrashRole = QtCore.Qt.UserRole + 2
 
 
 class _Item:
@@ -79,10 +79,9 @@ class _Trash(_Item):
     def __init__(self, parent):
         super().__init__(parent,
                          [
-                             _AllRemovedEvent(self),
+                             # _AllRemovedEvent(self),
                              *_get_catalogues(self, removed_items=True)
                          ])
-        print(self._items)
 
     def text(self):
         return "Trash"
@@ -95,10 +94,10 @@ class _Root(_Item):
     def __init__(self):
         super().__init__(None,
                          [
-                             _AllEvents(self),
-                             _Separator(self),
+                             # _AllEvents(self),
+                             # _Separator(self),
                              *_get_catalogues(self, removed_items=False),
-                             _Separator(self),
+                             # _Separator(self),
                              _Trash(self),
                          ])
 
@@ -171,9 +170,6 @@ class CatalogueModel(QtCore.QAbstractItemModel):
         elif role == UUIDRole:
             if type(index.internalPointer()) == _Catalogue:
                 return index.internalPointer().uuid()
-        elif role == InTrashRole:
-            if type(index.internalPointer()) == _Catalogue:
-                return index.internalPointer().parent() == self._root.trash_node()
 
         return None
 
@@ -197,9 +193,13 @@ class CatalogueModel(QtCore.QAbstractItemModel):
 class EventModel(QtCore.QAbstractTableModel):
     _columns = ['start', 'stop', 'author', 'tags', 'products']
 
-    def __init__(self, parent=None):
+    def __init__(self, state: AppState, parent=None):
         super().__init__(parent)
+
+        self.catalogue_uuid = None
         self.events = []
+
+        state.state_changed.connect(self.set_catalogue)
 
     def headerData(self, section: int, orientation: QtCore.Qt.Orientation, role: int = QtCore.Qt.DisplayRole) -> Any:
         if orientation == QtCore.Qt.Orientation.Horizontal:
@@ -223,11 +223,27 @@ class EventModel(QtCore.QAbstractTableModel):
                 return str(self.events[index.row()].__dict__[key])
             else:
                 return str(self.events[index.row()].variable_attributes())
+        elif role == UUIDRole:
+            return self.events[index.row()].uuid
+
         return None
 
-    def set_catalogue(self, uuid: str):
-        catalogue = get_entity_from_uuid_safe(uuid)
-        if catalogue:
-            self.beginResetModel()
-            self.events = tscat.get_events(catalogue)
-            self.endResetModel()
+    def reset(self):
+        self.beginResetModel()
+        self.events = []
+        if self.catalogue_uuid:
+            catalogue = get_entity_from_uuid_safe(self.catalogue_uuid)
+            if catalogue:
+                self.events = tscat.get_events(catalogue)
+        self.endResetModel()
+
+    def set_catalogue(self, command, type, uuid):
+        if command in ['active_select', 'passive_select'] and type == tscat.Catalogue:
+            self.catalogue_uuid = uuid
+            self.reset()
+
+    def index_from_uuid(self, uuid: str, parent=QtCore.QModelIndex()) -> QtCore.QModelIndex:
+        for row, event in enumerate(self.events):
+            if event.uuid == uuid:
+                return self.index(row, 0)
+        return QtCore.QModelIndex()

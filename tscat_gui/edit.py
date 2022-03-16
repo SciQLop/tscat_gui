@@ -5,6 +5,7 @@ from .utils.editable_label import EditableLabel
 from .utils.helper import get_entity_from_uuid_safe
 
 from .undo import NewAttribute, RenameAttribute, DeleteAttribute, SetAttributeValue
+from .state import AppState
 
 from typing import Union
 
@@ -95,13 +96,13 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
     def create_label(self, text: str):
         return QtWidgets.QLabel(text.title())
 
-    def __init__(self, title: str, uuid: str, undo_stack: QtWidgets.QUndoStack, parent: QtWidgets.QWidget = None):
+    def __init__(self, title: str, uuid: str, state: AppState, parent: QtWidgets.QWidget = None):
         super().__init__(title, parent)
 
         self.uuid = uuid
         self.entity = None
         self.attribute_name_labels = {}
-        self.undo_stack = undo_stack
+        self.state = state
 
         layout = QtWidgets.QGridLayout()
         layout.setMargin(0)
@@ -141,14 +142,14 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
 
     def _editing_finished(self, attr, value):
         if value != self.entity.__dict__[attr]:
-            self.undo_stack.push(SetAttributeValue(self.uuid, attr, value))
-
+            self.state.push_undo_command(SetAttributeValue, attr, value)
             self.valuesChanged.emit()
+            self.entity = get_entity_from_uuid_safe(self.uuid)
 
 
 class FixedAttributesGroupBox(AttributesGroupBox):
-    def __init__(self, uuid: str, undo_stack: QtWidgets.QUndoStack, parent: QtWidgets.QWidget = None):
-        super().__init__("Global", uuid, undo_stack, parent)
+    def __init__(self, uuid: str, state: AppState, parent: QtWidgets.QWidget = None):
+        super().__init__("Global", uuid, state, parent)
 
         self.setup()
 
@@ -196,8 +197,8 @@ class CustomAttributesGroupBox(AttributesGroupBox):
 
         return name
 
-    def __init__(self, uuid: str, undo_stack: QtWidgets.QUndoStack, parent: QtWidgets.QWidget = None):
-        super().__init__("Custom", uuid, undo_stack, parent)
+    def __init__(self, uuid: str, state: AppState, parent: QtWidgets.QWidget = None):
+        super().__init__("Custom", uuid, state, parent)
 
         self.setup()
 
@@ -238,7 +239,7 @@ class CustomAttributesGroupBox(AttributesGroupBox):
         layout.addWidget(widget, row, 1)
 
     def _delete(self, attr):
-        self.undo_stack.push(DeleteAttribute(self.uuid, attr))
+        self.state.push_undo_command(DeleteAttribute, attr)
 
     def _new(self):
         name = 'attribute{}'
@@ -252,10 +253,10 @@ class CustomAttributesGroupBox(AttributesGroupBox):
         type_name = self.type_combobox.itemText(self.type_combobox.currentIndex())
         default = _type_name_initial_value.get(type_name, _type_name[type_name])()
 
-        self.undo_stack.push(NewAttribute(self.uuid, name, default))
+        self.state.push_undo_command(NewAttribute, name, default)
 
     def _attribute_name_changed(self, previous: str, text: str):
-        self.undo_stack.push(RenameAttribute(self.uuid, previous, text))
+        self.state.push_undo_command(RenameAttribute, previous, text)
 
     def _attribute_name_is_changing(self, previous: str, text: str):
         # highlight the existing attribute which is using the same text as name
@@ -267,34 +268,68 @@ class CustomAttributesGroupBox(AttributesGroupBox):
             self.attribute_name_labels[text].setStyleSheet('color: red')
 
 
-class EntityEditWidget(QtWidgets.QScrollArea):
-    valuesChanged = QtCore.Signal(str)
-
-    def __init__(self, uuid: str, undo_stack: QtWidgets.QUndoStack, read_only: bool = False, parent=None):
+class _EntityEditWidget(QtWidgets.QWidget):
+    def __init__(self, uuid: str, state: AppState, parent=None):
         super().__init__(parent)
-
-        self.uuid = uuid
 
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(5, 5, 5, 5)
 
-        self.fixed_attributes = FixedAttributesGroupBox(self.uuid, undo_stack)
-        self.fixed_attributes.valuesChanged.connect(lambda: self.valuesChanged.emit(self.uuid))
+        self.fixed_attributes = FixedAttributesGroupBox(uuid, state)
         layout.addWidget(self.fixed_attributes)
 
-        self.attributes = CustomAttributesGroupBox(self.uuid, undo_stack)
-        self.attributes.valuesChanged.connect(lambda: self.valuesChanged.emit(self.uuid))
+        self.attributes = CustomAttributesGroupBox(uuid, state)
         layout.addWidget(self.attributes)
 
         layout.addStretch()
 
-        widget = QtWidgets.QWidget()
-        widget.setLayout(layout)
+        self.setLayout(layout)
 
-        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)
-        self.setWidgetResizable(True)
-        self.setWidget(widget)
+        state.state_changed.connect(self.state_changed)
+
+    def state_changed(self, action, type, uuid):
+        print('edit-window', action, type, uuid, self.attributes.uuid)
+        if action == 'changed':
+            self.setup()
+        elif action == 'deleted':
+            print('   clear')
 
     def setup(self):
         self.attributes.setup()
         self.fixed_attributes.setup()
+
+
+class EntityEditView(QtWidgets.QScrollArea):
+
+    def __init__(self, state: AppState, parent=None):
+        super().__init__(parent)
+
+        self.edit = None
+        self.state = state
+        self.current = None
+
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)
+        self.setWidgetResizable(True)
+
+        self.state.state_changed.connect(self.state_changed)
+
+    def state_changed(self, action: str, type, uuid: str):
+        print('edit-view', action, type, uuid, self.current)
+        if action in ['active_select', 'changed']:
+            if self.current != uuid:
+                print('editing', uuid)
+                if self.edit:
+                    self.edit.deleteLater()
+                    self.edit = None
+
+                if uuid:
+                    self.edit = _EntityEditWidget(uuid, self.state)
+                    self.setWidget(self.edit)
+                self.current = uuid
+            else:
+                print(f'ignoring edit - already selected "{uuid}"')
+        elif action == 'deleted' and self.current == uuid:
+            if self.edit:
+                self.edit.deleteLater()
+                self.edit = None
+                self.current = None
