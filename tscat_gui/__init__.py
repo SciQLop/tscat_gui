@@ -10,7 +10,7 @@ from PySide2 import QtGui
 
 import tscat
 
-from .model import CatalogueModel, UUIDRole, InTrashRole
+from .model import CatalogueModel, EventModel, UUIDRole, InTrashRole
 
 from .edit import EntityEditWidget
 
@@ -36,8 +36,13 @@ class TSCatGUI(QtWidgets.QWidget):
 
         self.undo_stack = _UndoStack(self)
 
-        events = QtWidgets.QTableView()
-        events.setMinimumSize(1000, 500)
+        self.events_model = EventModel(self)
+
+        self.events = QtWidgets.QTableView()
+        self.events.setMinimumSize(1000, 500)
+
+        self.events.setModel(self.events_model)
+        self.events.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
 
         self.empty_edit = QtWidgets.QWidget()
         self.empty_edit.setMinimumHeight(400)
@@ -45,7 +50,7 @@ class TSCatGUI(QtWidgets.QWidget):
         self.edit = self.empty_edit
 
         splitter_right = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
-        splitter_right.addWidget(events)
+        splitter_right.addWidget(self.events)
         splitter_right.addWidget(self.edit)
 
         self.catalogue_model = CatalogueModel(self)
@@ -108,6 +113,8 @@ class TSCatGUI(QtWidgets.QWidget):
                     self.move_to_trash_action.setEnabled(not in_trash)
                     self.restore_from_trash_action.setEnabled(in_trash)
                     self.delete_action.setEnabled(True)
+
+                    self.events_model.set_catalogue(uuid)
 
         # self.catalogues.selectionModel().selectionChanged.connect(sel_changed)
         self.catalogues.selectionModel().currentChanged.connect(cur_changed)

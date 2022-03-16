@@ -192,3 +192,42 @@ class CatalogueModel(QtCore.QAbstractItemModel):
                 if result != QtCore.QModelIndex():
                     return result
         return QtCore.QModelIndex()
+
+
+class EventModel(QtCore.QAbstractTableModel):
+    _columns = ['start', 'stop', 'author', 'tags', 'products']
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.events = []
+
+    def headerData(self, section: int, orientation: QtCore.Qt.Orientation, role: int = QtCore.Qt.DisplayRole) -> Any:
+        if orientation == QtCore.Qt.Orientation.Horizontal:
+            if role == QtCore.Qt.DisplayRole:
+                if section < len(self._columns):
+                    return self._columns[section].title()
+                else:
+                    return "Attributes"
+        return None
+
+    def columnCount(self, parent: QtCore.QModelIndex) -> int:
+        return len(self._columns) + 1
+
+    def rowCount(self, parent: QtCore.QModelIndex) -> int:
+        return len(self.events)
+
+    def data(self, index: QtCore.QModelIndex, role: int):
+        if role == QtCore.Qt.DisplayRole:
+            if index.column() < len(self._columns):
+                key = self._columns[index.column()]
+                return str(self.events[index.row()].__dict__[key])
+            else:
+                return str(self.events[index.row()].variable_attributes())
+        return None
+
+    def set_catalogue(self, uuid: str):
+        catalogue = get_entity_from_uuid_safe(uuid)
+        if catalogue:
+            self.beginResetModel()
+            self.events = tscat.get_events(catalogue)
+            self.endResetModel()
