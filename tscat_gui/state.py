@@ -1,0 +1,54 @@
+from PySide2 import QtWidgets
+from PySide2 import QtCore
+
+import tscat
+
+from typing import Union
+import dataclasses
+
+
+@dataclasses.dataclass
+class SelectState:
+    active: str
+    type: Union[tscat.Catalogue, tscat.Event]
+    active_catalogue: str
+
+
+class AppState(QtCore.QObject):
+    state_changed = QtCore.Signal(str, type, str)
+
+    undo_stack_clean_changed = QtCore.Signal(bool)
+
+    def __init__(self):
+        super().__init__()
+        self.active: str = None
+        self.active_type: Union[tscat.Catalogue, tscat.Event] = tscat.Catalogue
+        self.active_catalogue: str = None
+
+        self._undo_stack = QtWidgets.QUndoStack()
+        self._undo_stack.cleanChanged.connect(lambda x: self.undo_stack_clean_changed.emit(x))
+
+    def push_undo_command(self, cls, *args) -> None:
+        self._undo_stack.push(cls(self, *args))
+
+    def set_undo_stack_clean(self):
+        self._undo_stack.setClean()
+
+    def create_undo_redo_action(self):
+        return self._undo_stack.createUndoAction(self), self._undo_stack.createRedoAction(self)
+
+    def select_state(self) -> SelectState:
+        return SelectState(self.active, self.active_type, self.active_catalogue)
+
+    def updated(self, action: str, type: Union[tscat.Catalogue, tscat.Event], uuid: str) -> None:
+        if action == 'active_select':
+            if uuid != self.active:
+                self.active = uuid
+                self.active_type = type
+
+                if self.active_type == tscat.Catalogue:
+                    self.active_catalogue = uuid
+            else:
+                print('already active', uuid)
+
+        self.state_changed.emit(action, type, uuid)

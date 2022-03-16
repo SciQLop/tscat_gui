@@ -19,7 +19,7 @@ def get_entity_from_uuid_safe(uuid: str) -> Union[tscat.Catalogue, tscat.Event]:
             if len(events) == 1:
                 return events[0]
             elif len(events) == 0:
-                events = tscat.get_events(tscat.filtering.UUID(uuid), removed_items=False)
+                events = tscat.get_events(tscat.filtering.UUID(uuid), removed_items=True)
                 if len(events) == 1:
                     return events[0]
 

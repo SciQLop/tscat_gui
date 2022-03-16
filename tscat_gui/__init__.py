@@ -10,119 +10,102 @@ from PySide2 import QtGui
 
 import tscat
 
-from .model import CatalogueModel, EventModel, UUIDRole, InTrashRole
+from .model import CatalogueModel, EventModel, UUIDRole
 
-from .edit import EntityEditWidget
+from .edit import EntityEditView
+from .state import AppState
 
 from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash, DeletePermanently
 
 from .utils.helper import get_entity_from_uuid_safe
 
-
-class _UndoStack(QtWidgets.QUndoStack):
-    def __init__(self, main_widget: QtWidgets.QWidget):
-        super().__init__(None)
-
-        self.main_widget = main_widget
-
-    def push(self, cmd: QtWidgets.QUndoCommand) -> None:
-        cmd.set_stack(self)
-        super().push(cmd)
-
-
 class TSCatGUI(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.undo_stack = _UndoStack(self)
+        self.state = AppState()
 
-        self.events_model = EventModel(self)
+        self.events_model = EventModel(self.state, self)
 
-        self.events = QtWidgets.QTableView()
-        self.events.setMinimumSize(1000, 500)
+        self.events_view = QtWidgets.QTableView()
+        self.events_view.setMinimumSize(1000, 500)
 
-        self.events.setModel(self.events_model)
-        self.events.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        self.events_view.setModel(self.events_model)
+        self.events_view.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        self.events_view.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
 
-        self.empty_edit = QtWidgets.QWidget()
-        self.empty_edit.setMinimumHeight(400)
+        def event_view_clicked(selected: QtCore.QModelIndex):
+            uuid = self.events_model.data(selected, UUIDRole)
+            self.state.updated('active_select', tscat.Event, uuid)
 
-        self.edit = self.empty_edit
+        self.events_view.activated.connect(event_view_clicked)
 
-        splitter_right = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
-        splitter_right.addWidget(self.events)
-        splitter_right.addWidget(self.edit)
+        self.edit_view = EntityEditView(self.state, self)
+
+        self.splitter_right = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
+        self.splitter_right.addWidget(self.events_view)
+        self.splitter_right.addWidget(self.edit_view)
 
         self.catalogue_model = CatalogueModel(self)
 
-        self.catalogues = QtWidgets.QTreeView()
-        self.catalogues.setMinimumSize(300, 900)
-        self.catalogues.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.catalogues_view = QtWidgets.QTreeView()
+        self.catalogues_view.setMinimumSize(300, 900)
+        self.catalogues_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
 
-        self.catalogues.setModel(self.catalogue_model)
+        self.catalogues_view.setModel(self.catalogue_model)
 
-        self.catalogues.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.catalogues_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
-        def restore_triggered(checked: bool):
-            print("triggered")
-            for i in self.catalogues.selectedIndexes():
-                print(i.internalPointer())
+        def catalogue_view_clicked(selected: QtCore.QModelIndex):
+            uuid = self.catalogue_model.data(selected, UUIDRole)
+            self.state.updated('active_select', tscat.Catalogue, uuid)
 
-        def ctxMenu(pos: QtCore.QPoint):
-            context_menu = QtWidgets.QMenu(self)
-            action = QtWidgets.QAction(QtGui.QIcon.fromTheme('view-refresh'), "Restore", self)
-            action.triggered.connect(restore_triggered)
-            context_menu.addAction(action)
-            context_menu.exec_(self.catalogues.viewport().mapToGlobal(pos))
+        self.catalogues_view.activated.connect(catalogue_view_clicked)
+        # TODO see whether we can now use selectionChanged()-signal
 
-        self.catalogues.customContextMenuRequested.connect(ctxMenu)
+        self.catalogues_view.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
 
-        def sel_changed(selected: QtCore.QItemSelection, deselected: QtCore.QItemSelection):
-            print("selected:", [i for i in selected.indexes()])
-            if len(selected.indexes()) == 1:
-                print('edit-window-update')
+        def state_changed(action, type, uuid):
+            print(f'main-window action:{action}, type:{type}, uuid:{uuid}')
+            if action in ['changed', 'moved', 'inserted', 'deleted', 'active_select', 'passive_select']:
+                if type == tscat.Catalogue:
+                    if action not in ['active_select', 'passive_select']:
+                        self.catalogue_model.reset()
+                    index = self.catalogue_model.index_from_uuid(uuid)
+                    self.catalogues_view.setCurrentIndex(index)
+                else:
+                    if action not in ['active_select', 'passive_select']:
+                        self.events_model.reset()
+                    index = self.events_model.index_from_uuid(uuid)
+                    self.events_view.setCurrentIndex(index)
 
-            # print("deselected:", [i for i in deselected.indexes()])
-
-        def current_model_data_changed(uuid: str):
-            self.catalogue_model.dataChanged.emit(
-                self.current_selected_catalogue,
-                self.current_selected_catalogue,
-                QtCore.Qt.EditRole)
-
-        def cur_changed(selected: QtCore.QModelIndex, deselected: QtCore.QModelIndex):
-            # print("cur_changed", selected, deselected)
-            if self.edit:
-                self.edit.deleteLater()
-                self.edit = None
-
-            self.move_to_trash_action.setEnabled(False)
-            self.restore_from_trash_action.setEnabled(False)
-            self.delete_action.setEnabled(False)
-
-            if selected.isValid():
-                self.current_selected_catalogue = selected
-                uuid = self.catalogue_model.data(selected, UUIDRole)
-                in_trash = self.catalogue_model.data(selected, InTrashRole)
+            if action == 'active_select':
+                self.move_to_trash_action.setEnabled(False)
+                self.restore_from_trash_action.setEnabled(False)
+                self.delete_action.setEnabled(False)
 
                 if uuid:
-                    self.edit = EntityEditWidget(uuid, self.undo_stack, in_trash, self)
-                    self.edit.valuesChanged.connect(current_model_data_changed)
-                    splitter_right.addWidget(self.edit)
-
-                    self.move_to_trash_action.setEnabled(not in_trash)
-                    self.restore_from_trash_action.setEnabled(in_trash)
+                    entity = get_entity_from_uuid_safe(uuid)
+                    if entity.is_removed():
+                        self.restore_from_trash_action.setEnabled(True)
+                    else:
+                        self.move_to_trash_action.setEnabled(True)
                     self.delete_action.setEnabled(True)
 
-                    self.events_model.set_catalogue(uuid)
+        # def ctxMenu(pos: QtCore.QPoint):
+        #     context_menu = QtWidgets.QMenu(self)
+        #     action = QtWidgets.QAction(QtGui.QIcon.fromTheme('view-refresh'), "Restore", self)
+        #     action.triggered.connect(restore_triggered)
+        #     context_menu.addAction(action)
+        #     context_menu.exec_(self.catalogues.viewport().mapToGlobal(pos))
 
-        # self.catalogues.selectionModel().selectionChanged.connect(sel_changed)
-        self.catalogues.selectionModel().currentChanged.connect(cur_changed)
-        self.catalogues.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
+        # self.catalogues.customContextMenuRequested.connect(ctxMenu)
+
+        self.state.state_changed.connect(state_changed)
 
         splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
-        splitter.addWidget(self.catalogues)
-        splitter.addWidget(splitter_right)
+        splitter.addWidget(self.catalogues_view)
+        splitter.addWidget(self.splitter_right)
 
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -132,7 +115,7 @@ class TSCatGUI(QtWidgets.QWidget):
         action = QtWidgets.QAction(QtGui.QIcon.fromTheme('folder-new'), "Create Catalogue", self)
 
         def new_catalogue():
-            self.undo_stack.push(NewCatalogue())
+            self.state.push_undo_command(NewCatalogue)
 
         action.triggered.connect(new_catalogue)
         toolbar.addAction(action)
@@ -141,26 +124,25 @@ class TSCatGUI(QtWidgets.QWidget):
 
         def save():
             tscat.save()
-            self.undo_stack.setClean()
+            self.state.set_undo_stack_clean()
 
         action.triggered.connect(save)
         toolbar.addAction(action)
         action.setEnabled(False)
-        self.undo_stack.cleanChanged.connect(lambda state, a=action: a.setEnabled(not state))
+        self.state.undo_stack_clean_changed.connect(lambda state, a=action: a.setEnabled(not state))
 
-        action = self.undo_stack.createUndoAction(self)
-        action.setIcon(QtGui.QIcon.fromTheme('edit-undo'))
-        toolbar.addAction(action)
+        undo_action, redo_action = self.state.create_undo_redo_action()
 
-        action = self.undo_stack.createRedoAction(self)
-        action.setIcon(QtGui.QIcon.fromTheme('edit-redo'))
-        toolbar.addAction(action)
+        undo_action.setIcon(QtGui.QIcon.fromTheme('edit-undo'))
+        toolbar.addAction(undo_action)
+
+        redo_action.setIcon(QtGui.QIcon.fromTheme('edit-redo'))
+        toolbar.addAction(redo_action)
 
         action = QtWidgets.QAction(QtGui.QIcon.fromTheme('user-trash'), "Move to Trash", self)
 
         def trash():
-            uuid = self.catalogue_model.data(self.current_selected_catalogue, UUIDRole)
-            self.undo_stack.push(MoveEntityToTrash(uuid))
+            self.state.push_undo_command(MoveEntityToTrash)
 
         action.triggered.connect(trash)
         action.setEnabled(False)
@@ -170,8 +152,7 @@ class TSCatGUI(QtWidgets.QWidget):
         action = QtWidgets.QAction(QtGui.QIcon.fromTheme('todo'), "Restore from Trash", self)
 
         def restore():
-            uuid = self.catalogue_model.data(self.current_selected_catalogue, UUIDRole)
-            self.undo_stack.push(RestoreEntityFromTrash(uuid))
+            self.state.push_undo_command(RestoreEntityFromTrash)
 
         action.triggered.connect(restore)
         action.setEnabled(False)
@@ -181,9 +162,7 @@ class TSCatGUI(QtWidgets.QWidget):
         action = QtWidgets.QAction(QtGui.QIcon.fromTheme('edit-delete'), "Delete permanently", self)
 
         def delete():
-            uuid = self.catalogue_model.data(self.current_selected_catalogue, UUIDRole)
-            in_trash = self.catalogue_model.data(self.current_selected_catalogue, InTrashRole)
-            self.undo_stack.push(DeletePermanently(uuid, in_trash))
+            self.state.push_undo_command(DeletePermanently)
 
         action.triggered.connect(delete)
         action.setEnabled(False)
@@ -194,28 +173,3 @@ class TSCatGUI(QtWidgets.QWidget):
         layout.addWidget(splitter)
         self.setLayout(layout)
 
-    def select(self, entity_uuid: str, catalogue_uuid: str = None) -> None:
-        self.catalogue_model.reset()
-        if entity_uuid is not None:
-            entity = get_entity_from_uuid_safe(entity_uuid)
-
-            if type(entity) is tscat.Catalogue:
-                print('select catalogue', entity.name)
-                index = self.catalogue_model.index_from_uuid(entity.uuid)
-                if index.isValid():
-                    self.catalogues.setCurrentIndex(index)
-                    self.edit.setup()
-                    print('update edit')
-                else:
-                    print('catalogue not in model')
-            else:
-                print('select event', entity)
-        else:
-            if self.edit:
-                self.edit.deleteLater()
-                self.edit = None
-
-        if catalogue_uuid:
-            catalogue = get_entity_from_uuid_safe(catalogue_uuid)
-
-            print("  and select catalogue", catalogue.name)
