@@ -175,7 +175,8 @@ class TSCatGUI(QtWidgets.QWidget):
 
         def delete():
             uuid = self.catalogue_model.data(self.current_selected_catalogue, UUIDRole)
-            self.undo_stack.push(DeletePermanently(uuid))
+            in_trash = self.catalogue_model.data(self.current_selected_catalogue, InTrashRole)
+            self.undo_stack.push(DeletePermanently(uuid, in_trash))
 
         action.triggered.connect(delete)
         action.setEnabled(False)
