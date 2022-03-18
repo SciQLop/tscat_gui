@@ -172,10 +172,11 @@ class RestoreEntityFromTrash(MoveRestoreTrashedEntity):
 
 
 class DeletePermanently(_EntityBased):
-    def __init__(self, entity_uuid: str, catalogue_uuid: str = None, parent=None):
+    def __init__(self, entity_uuid: str, in_trash: bool, catalogue_uuid: str = None, parent=None):
         super().__init__(entity_uuid, catalogue_uuid, parent)
         self.deleted_entity_data = None
         self.entity_type = None
+        self.entity_in_trash = in_trash
 
     def _redo(self):
         entity = get_entity_from_uuid_safe(self.entity_uuid)
@@ -192,3 +193,5 @@ class DeletePermanently(_EntityBased):
     def _undo(self):
         e = self.entity_type(**self.deleted_entity_data)
         self.entity_uuid = e.uuid
+        if self.entity_in_trash:
+            e.remove()
