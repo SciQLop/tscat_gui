@@ -112,7 +112,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
         toolbar = QtWidgets.QToolBar()
 
-        action = QtWidgets.QAction(QtGui.QIcon.fromTheme('folder-new'), "Create Catalogue", self)
+        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder), "Create Catalogue", self)
 
         def new_catalogue():
             self.state.push_undo_command(NewCatalogue)
@@ -120,7 +120,7 @@ class TSCatGUI(QtWidgets.QWidget):
         action.triggered.connect(new_catalogue)
         toolbar.addAction(action)
 
-        action = QtWidgets.QAction(QtGui.QIcon.fromTheme('document-save'), "Save To Disk", self)
+        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton), "Save To Disk", self)
 
         def save():
             tscat.save()
@@ -133,13 +133,13 @@ class TSCatGUI(QtWidgets.QWidget):
 
         undo_action, redo_action = self.state.create_undo_redo_action()
 
-        undo_action.setIcon(QtGui.QIcon.fromTheme('edit-undo'))
+        undo_action.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowBack))
         toolbar.addAction(undo_action)
 
-        redo_action.setIcon(QtGui.QIcon.fromTheme('edit-redo'))
+        redo_action.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowForward))
         toolbar.addAction(redo_action)
 
-        action = QtWidgets.QAction(QtGui.QIcon.fromTheme('user-trash'), "Move to Trash", self)
+        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_TrashIcon), "Move to Trash", self)
 
         def trash():
             self.state.push_undo_command(MoveEntityToTrash)
@@ -149,7 +149,7 @@ class TSCatGUI(QtWidgets.QWidget):
         toolbar.addAction(action)
         self.move_to_trash_action = action
 
-        action = QtWidgets.QAction(QtGui.QIcon.fromTheme('todo'), "Restore from Trash", self)
+        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogResetButton), "Restore from Trash", self)
 
         def restore():
             self.state.push_undo_command(RestoreEntityFromTrash)
@@ -159,7 +159,7 @@ class TSCatGUI(QtWidgets.QWidget):
         toolbar.addAction(action)
         self.restore_from_trash_action = action
 
-        action = QtWidgets.QAction(QtGui.QIcon.fromTheme('edit-delete'), "Delete permanently", self)
+        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_BrowserStop), "Delete permanently", self)
 
         def delete():
             self.state.push_undo_command(DeletePermanently)
