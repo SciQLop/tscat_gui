@@ -34,11 +34,15 @@ class TSCatGUI(QtWidgets.QWidget):
         self.events_view.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
         self.events_view.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
 
-        def event_view_clicked(selected: QtCore.QModelIndex):
-            uuid = self.events_model.data(selected, UUIDRole)
-            self.state.updated('active_select', tscat.Event, uuid)
+        def current_event_changed(selected: QtCore.QModelIndex, deselected: QtCore.QModelIndex):
+            if selected.isValid():
+                if not deselected.isValid() or deselected.row() != selected.row():
+                    uuid = self.events_model.data(selected, UUIDRole)
+                    self.state.updated('active_select', tscat.Event, uuid)
+            else:
+                self.state.select_event(None, True)
 
-        self.events_view.activated.connect(event_view_clicked)
+        self.events_view.selectionModel().currentChanged.connect(current_event_changed)
 
         self.edit_view = EntityEditView(self.state, self)
 
@@ -56,11 +60,14 @@ class TSCatGUI(QtWidgets.QWidget):
 
         self.catalogues_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
-        def catalogue_view_clicked(selected: QtCore.QModelIndex):
-            uuid = self.catalogue_model.data(selected, UUIDRole)
-            self.state.updated('active_select', tscat.Catalogue, uuid)
+        def current_catalogue_changed(selected: QtCore.QModelIndex, deselected: QtCore.QModelIndex):
+            if selected.isValid():
+                uuid = self.catalogue_model.data(selected, UUIDRole)
+                self.state.updated('active_select', tscat.Catalogue, uuid)
+            else:
+                self.state.updated('active_select', tscat.Catalogue, None)
 
-        self.catalogues_view.activated.connect(catalogue_view_clicked)
+        self.catalogues_view.selectionModel().currentChanged.connect(current_catalogue_changed)
         # TODO see whether we can now use selectionChanged()-signal
 
         self.catalogues_view.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
