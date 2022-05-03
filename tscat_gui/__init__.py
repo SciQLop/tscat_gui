@@ -7,6 +7,8 @@ __version__ = '0.1.0'
 from PySide2 import QtWidgets
 from PySide2 import QtCore
 
+from typing import Union
+
 import tscat
 
 from .model import CatalogueModel, EventModel, UUIDRole
@@ -20,10 +22,17 @@ from .utils.helper import get_entity_from_uuid_safe
 
 
 class TSCatGUI(QtWidgets.QWidget):
+    event_selected = QtCore.Signal(str)
+    catalogue_selected = QtCore.Signal(str)
+    event_changed = QtCore.Signal(str)
+    catalogue_changed = QtCore.Signal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
         self.state = AppState()
+
+        self.state.state_changed.connect(self._external_signal_emission)
 
         self.events_model = EventModel(self.state, self)
 
@@ -177,3 +186,16 @@ class TSCatGUI(QtWidgets.QWidget):
         layout.addWidget(toolbar)
         layout.addWidget(splitter)
         self.setLayout(layout)
+
+    def _external_signal_emission(self, action: str, type: Union[tscat.Catalogue, tscat.Event], uuid: str):
+        if action == "active_select":
+            if type == tscat.Catalogue:
+                self.catalogue_selected.emit(uuid)
+            else:
+                self.event_selected.emit(uuid)
+
+        elif action == 'changed':
+            if type == tscat.Catalogue:
+                self.catalogue_changed.emit(uuid)
+            else:
+                self.event_changed.emit(uuid)
