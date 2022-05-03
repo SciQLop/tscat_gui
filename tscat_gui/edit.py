@@ -288,11 +288,8 @@ class _EntityEditWidget(QtWidgets.QWidget):
         state.state_changed.connect(self.state_changed)
 
     def state_changed(self, action, type, uuid):
-        print('edit-window', action, type, uuid, self.attributes.uuid)
         if action == 'changed':
             self.setup()
-        elif action == 'deleted':
-            print('   clear')
 
     def setup(self):
         self.attributes.setup()
@@ -314,10 +311,8 @@ class EntityEditView(QtWidgets.QScrollArea):
         self.state.state_changed.connect(self.state_changed)
 
     def state_changed(self, action: str, type, uuid: str):
-        print('edit-view', action, type, uuid, self.current)
         if action in ['active_select', 'changed']:
             if self.current != uuid:
-                print('editing', uuid)
                 if self.edit:
                     self.edit.deleteLater()
                     self.edit = None
@@ -326,8 +321,6 @@ class EntityEditView(QtWidgets.QScrollArea):
                     self.edit = _EntityEditWidget(uuid, self.state)
                     self.setWidget(self.edit)
                 self.current = uuid
-            else:
-                print(f'ignoring edit - already selected "{uuid}"')
         elif action == 'deleted' and self.current == uuid:
             if self.edit:
                 self.edit.deleteLater()

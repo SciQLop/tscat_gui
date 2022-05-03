@@ -94,10 +94,7 @@ class _Root(_Item):
     def __init__(self):
         super().__init__(None,
                          [
-                             # _AllEvents(self),
-                             # _Separator(self),
                              *_get_catalogues(self, removed_items=False),
-                             # _Separator(self),
                              _Trash(self),
                          ])
 
