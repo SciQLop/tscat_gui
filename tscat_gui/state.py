@@ -51,4 +51,5 @@ class AppState(QtCore.QObject):
             else:
                 print('already active', uuid)
 
+        print(f'app-state-updated action:{action}, type:{type}, uuid:{uuid}')
         self.state_changed.emit(action, type, uuid)
