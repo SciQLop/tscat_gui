@@ -76,13 +76,18 @@ class TSCatGUI(QtWidgets.QWidget):
                 if type == tscat.Catalogue:
                     if action not in ['active_select', 'passive_select']:
                         self.catalogue_model.reset()
+
                     index = self.catalogue_model.index_from_uuid(uuid)
+                    p = self.catalogues_view.selectionModel().blockSignals(True)
                     self.catalogues_view.setCurrentIndex(index)
+                    self.catalogues_view.selectionModel().blockSignals(p)
                 else:
                     if action not in ['active_select', 'passive_select']:
                         self.events_model.reset()
                     index = self.events_model.index_from_uuid(uuid)
+                    p = self.events_view.selectionModel().blockSignals(True)
                     self.events_view.setCurrentIndex(index)
+                    self.events_view.selectionModel().blockSignals(p)
 
             if action == 'active_select':
                 self.move_to_trash_action.setEnabled(False)
