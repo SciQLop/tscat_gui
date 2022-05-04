@@ -6,6 +6,8 @@ import tscat
 from typing import Union
 import dataclasses
 
+from .logger import log
+
 
 @dataclasses.dataclass
 class SelectState:
@@ -49,7 +51,7 @@ class AppState(QtCore.QObject):
                 if self.active_type == tscat.Catalogue:
                     self.active_catalogue = uuid
             else:
-                print('already active', uuid)
+                log.debug('already active', uuid)
 
-        print(f'app-state-updated action:{action}, type:{type}, uuid:{uuid}')
+        log.debug(f'app-state-updated action:{action}, type:{type}, uuid:{uuid}')
         self.state_changed.emit(action, type, uuid)
