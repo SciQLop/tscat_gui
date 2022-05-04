@@ -174,6 +174,23 @@ class TSCatGUI(QtWidgets.QWidget):
         toolbar.addAction(action)
         self.delete_action = action
 
+        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogRetryButton), "Refresh",
+                                   self)
+
+        def refresh():
+            current_selection = self.state.select_state()
+            self.catalogue_model.reset()
+            self.events_model.reset()
+
+            if current_selection.type == tscat.Event:
+                self.state.updated('passive_select', tscat.Catalogue, current_selection.active_catalogue)
+            self.state.updated('active_select', current_selection.type, current_selection.active)
+
+        action.triggered.connect(refresh)
+        toolbar.addAction(action)
+
+        self.refresh_action = action
+
         layout.addWidget(toolbar)
         layout.addWidget(splitter)
         self.setLayout(layout)
