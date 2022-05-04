@@ -17,7 +17,7 @@ from .model import CatalogueModel, EventModel, UUIDRole
 from .edit import EntityEditView
 from .state import AppState
 
-from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash, DeletePermanently
+from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash, DeletePermanently, NewEvent
 
 from .utils.helper import get_entity_from_uuid_safe
 
@@ -112,6 +112,7 @@ class TSCatGUI(QtWidgets.QWidget):
                 self.move_to_trash_action.setEnabled(False)
                 self.restore_from_trash_action.setEnabled(False)
                 self.delete_action.setEnabled(False)
+                self.new_event_action.setEnabled(False)
 
                 if uuid:
                     entity = get_entity_from_uuid_safe(uuid)
@@ -120,6 +121,7 @@ class TSCatGUI(QtWidgets.QWidget):
                     else:
                         self.move_to_trash_action.setEnabled(True)
                     self.delete_action.setEnabled(True)
+                    self.new_event_action.setEnabled(True)
 
         self.state.state_changed.connect(state_changed)
 
@@ -140,6 +142,18 @@ class TSCatGUI(QtWidgets.QWidget):
 
         action.triggered.connect(new_catalogue)
         toolbar.addAction(action)
+
+        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_FileIcon),
+                                   "Create Event", self)
+
+        def new_event():
+            self.state.push_undo_command(NewEvent)
+
+        action.triggered.connect(new_event)
+        action.setEnabled(False)
+        toolbar.addAction(action)
+
+        self.new_event_action = action
 
         action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton), "Save To Disk",
                                    self)
