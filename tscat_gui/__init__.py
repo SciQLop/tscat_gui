@@ -137,9 +137,11 @@ class TSCatGUI(QtWidgets.QWidget):
         undo_action, redo_action = self.state.create_undo_redo_action()
 
         undo_action.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowBack))
+        undo_action.setShortcut(QtCore.Qt.CTRL + QtCore.Qt.Key_Z)
         toolbar.addAction(undo_action)
 
         redo_action.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowForward))
+        redo_action.setShortcut(QtCore.Qt.CTRL + QtCore.Qt.SHIFT + QtCore.Qt.Key_Z)
         toolbar.addAction(redo_action)
 
         action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_TrashIcon), "Move to Trash", self)
