@@ -5,6 +5,9 @@ from .state import AppState
 
 import tscat
 
+import datetime as dt
+from typing import Union
+
 
 class _EntityBased(QtWidgets.QUndoCommand):
     def __init__(self, state: AppState, parent=None):
@@ -13,10 +16,13 @@ class _EntityBased(QtWidgets.QUndoCommand):
         self.state = state
         self.select_state = state.select_state()
 
-    def _select(self, uuid: str):
-        if self.select_state.type == tscat.Event:
+    def _select(self, uuid: str, type: Union[tscat.Catalogue, tscat.Event, None] = None):
+        if type is None:
+            type = self.select_state.type
+
+        if type == tscat.Event:
             self.state.updated('passive_select', tscat.Catalogue, self.select_state.active_catalogue)
-        self.state.updated('active_select', self.select_state.type, uuid)
+        self.state.updated('active_select', type, uuid)
 
     def redo(self) -> None:
         self._redo()
@@ -153,7 +159,33 @@ class NewCatalogue(_EntityBased):
         catalogue.remove(permanently=True)
 
         self.state.updated("deleted", tscat.Catalogue, catalogue.uuid)
-        self._select(None)
+        self._select(self.select_state.active)
+
+
+class NewEvent(_EntityBased):
+    def __init__(self, state: AppState, parent=None):
+        super().__init__(state, parent)
+
+        self.setText('Create new Event')
+
+        self.uuid = None
+
+    def _redo(self):
+        event = tscat.Event(dt.datetime.now(), dt.datetime.now(), author="Author", uuid=self.uuid)
+
+        catalogue = get_entity_from_uuid_safe(self.select_state.active_catalogue)
+        catalogue.add_events(event)
+
+        self.state.updated("inserted", tscat.Event, event.uuid)
+        self._select(event.uuid, tscat.Event)
+        self.uuid = event.uuid
+
+    def _undo(self):
+        event = get_entity_from_uuid_safe(self.uuid)
+        event.remove(permanently=True)
+
+        self.state.updated("deleted", tscat.Event, event.uuid)
+        self._select(self.select_state.active)
 
 
 class MoveRestoreTrashedEntity(_EntityBased):
