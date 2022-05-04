@@ -22,12 +22,18 @@ class _IntDelegate(QtWidgets.QSpinBox):
         self.setValue(value)
 
 
-class _FloatDelegate(QtWidgets.QDoubleSpinBox):
+class _FloatDelegate(QtWidgets.QLineEdit):
     def __init__(self, value: float, parent: QtWidgets.QWidget = None):
         super().__init__(parent)
-        self.setRange(float('-inf'), float('inf'))
-        self.setValue(value)
 
+        validator = QtGui.QDoubleValidator(self)
+        validator.setNotation(QtGui.QDoubleValidator.Notation.ScientificNotation)
+        self.setValidator(validator)
+
+        self.setText(str(value))
+
+    def value(self) -> float:
+        return float(self.text())
 
 class _BoolDelegate(QtWidgets.QCheckBox):
     editingFinished = QtCore.Signal()
