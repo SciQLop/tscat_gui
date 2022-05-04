@@ -285,12 +285,6 @@ class _EntityEditWidget(QtWidgets.QWidget):
 
         self.setLayout(layout)
 
-        state.state_changed.connect(self.state_changed)
-
-    def state_changed(self, action, type, uuid):
-        if action == 'changed':
-            self.setup()
-
     def setup(self):
         self.attributes.setup()
         self.fixed_attributes.setup()
@@ -311,7 +305,7 @@ class EntityEditView(QtWidgets.QScrollArea):
         self.state.state_changed.connect(self.state_changed)
 
     def state_changed(self, action: str, type, uuid: str):
-        if action in ['active_select', 'changed']:
+        if action == 'active_select':
             if self.current != uuid:
                 if self.edit:
                     self.edit.deleteLater()
@@ -325,4 +319,6 @@ class EntityEditView(QtWidgets.QScrollArea):
             if self.edit:
                 self.edit.deleteLater()
                 self.edit = None
-                self.current = None
+            self.current = None
+        elif action == 'changed' and self.current == uuid:
+            self.edit.setup()

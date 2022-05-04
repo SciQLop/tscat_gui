@@ -8,6 +8,7 @@ from PySide2 import QtWidgets
 from PySide2 import QtCore
 
 from typing import Union
+import datetime as dt
 
 import tscat
 
@@ -134,11 +135,7 @@ class TSCatGUI(QtWidgets.QWidget):
         action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton), "Save To Disk",
                                    self)
 
-        def save():
-            tscat.save()
-            self.state.set_undo_stack_clean()
-
-        action.triggered.connect(save)
+        action.triggered.connect(self.save)
         toolbar.addAction(action)
         action.setEnabled(False)
         self.state.undo_stack_clean_changed.connect(lambda state, a=action: a.setEnabled(not state))
@@ -199,3 +196,27 @@ class TSCatGUI(QtWidgets.QWidget):
                 self.catalogue_changed.emit(uuid)
             else:
                 self.event_changed.emit(uuid)
+
+    def update_event_range(self, uuid: str, start: dt.datetime, stop: dt.datetime) -> None:
+        event = get_entity_from_uuid_safe(uuid)
+        event.start = start
+        event.stop = stop
+        self.state.updated('changed', tscat.Event, uuid)
+
+    def create_event(self, start: dt.datetime, stop: dt.datetime, author: str, catalogue_uuid: str) -> tscat.Event:
+        event = tscat.Event(start, stop, author)
+        catalogue = get_entity_from_uuid_safe(catalogue_uuid)
+        catalogue.add_events(event)
+
+        self.state.updated('inserted', tscat.Event, event.uuid)
+
+        return event
+
+    def move_to_trash(self, uuid: str) -> None:
+        entity = get_entity_from_uuid_safe(uuid)
+        entity.remove()
+        self.state.updated('moved', type(entity), uuid)
+
+    def save(self) -> None:
+        tscat.save()
+        self.state.set_undo_stack_clean()
