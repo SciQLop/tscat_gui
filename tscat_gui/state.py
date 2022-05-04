@@ -51,7 +51,7 @@ class AppState(QtCore.QObject):
                 if self.active_type == tscat.Catalogue:
                     self.active_catalogue = uuid
             else:
-                log.debug('already active', uuid)
+                log.debug(f'already active "{uuid}"')
 
         log.debug(f'app-state-updated action:{action}, type:{type}, uuid:{uuid}')
         self.state_changed.emit(action, type, uuid)

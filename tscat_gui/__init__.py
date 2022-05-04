@@ -44,15 +44,20 @@ class TSCatGUI(QtWidgets.QWidget):
         self.events_view.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
         self.events_view.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
 
+        self.programmatic_select = False
+
         def current_event_changed(selected: QtCore.QModelIndex, deselected: QtCore.QModelIndex):
+            if self.programmatic_select:
+                return
             if selected.isValid():
                 if not deselected.isValid() or deselected.row() != selected.row():
                     uuid = self.events_model.data(selected, UUIDRole)
                     self.state.updated('active_select', tscat.Event, uuid)
             else:
-                self.state.select_event(None, True)
+                self.state.updated('active_select', tscat.Event, None)
 
-        self.events_view.selectionModel().currentChanged.connect(current_event_changed)
+        self.events_view.selectionModel().currentChanged.connect(current_event_changed,
+                                                                 type=QtCore.Qt.DirectConnection)
 
         self.edit_view = EntityEditView(self.state, self)
 
@@ -71,13 +76,17 @@ class TSCatGUI(QtWidgets.QWidget):
         self.catalogues_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
         def current_catalogue_changed(selected: QtCore.QModelIndex, deselected: QtCore.QModelIndex):
+            if self.programmatic_select:
+                return
+
             if selected.isValid():
                 uuid = self.catalogue_model.data(selected, UUIDRole)
                 self.state.updated('active_select', tscat.Catalogue, uuid)
             else:
                 self.state.updated('active_select', tscat.Catalogue, None)
 
-        self.catalogues_view.selectionModel().currentChanged.connect(current_catalogue_changed)
+        self.catalogues_view.selectionModel().currentChanged.connect(current_catalogue_changed,
+                                                                     type=QtCore.Qt.DirectConnection)
 
         self.catalogues_view.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
 
@@ -88,16 +97,16 @@ class TSCatGUI(QtWidgets.QWidget):
                         self.catalogue_model.reset()
 
                     index = self.catalogue_model.index_from_uuid(uuid)
-                    p = self.catalogues_view.selectionModel().blockSignals(True)
+                    self.programmatic_select = True
                     self.catalogues_view.setCurrentIndex(index)
-                    self.catalogues_view.selectionModel().blockSignals(p)
+                    self.programmatic_select = False
                 else:
                     if action not in ['active_select', 'passive_select']:
                         self.events_model.reset()
                     index = self.events_model.index_from_uuid(uuid)
-                    p = self.events_view.selectionModel().blockSignals(True)
+                    self.programmatic_select = True
                     self.events_view.setCurrentIndex(index)
-                    self.events_view.selectionModel().blockSignals(p)
+                    self.programmatic_select = False
 
             if action == 'active_select':
                 self.move_to_trash_action.setEnabled(False)
