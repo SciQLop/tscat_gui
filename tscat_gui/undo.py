@@ -5,6 +5,7 @@ from .state import AppState
 
 import os
 import tscat
+from copy import deepcopy
 
 import datetime as dt
 from typing import Union
@@ -150,10 +151,10 @@ class NewCatalogue(_EntityBased):
     def _redo(self):
         # the first time called it will create a new UUID
         catalogue = tscat.Catalogue("New Catalogue", author=os.getlogin(), uuid=self.uuid)
+        self.uuid = catalogue.uuid
 
         self.state.updated("inserted", tscat.Catalogue, catalogue.uuid)
         self._select(catalogue.uuid, tscat.Catalogue)
-        self.uuid = catalogue.uuid
 
     def _undo(self):
         catalogue = get_entity_from_uuid_safe(self.uuid)
@@ -173,13 +174,13 @@ class NewEvent(_EntityBased):
 
     def _redo(self):
         event = tscat.Event(dt.datetime.now(), dt.datetime.now(), author=os.getlogin(), uuid=self.uuid)
+        self.uuid = event.uuid
 
         catalogue = get_entity_from_uuid_safe(self.select_state.active_catalogue)
         catalogue.add_events(event)
 
         self.state.updated("inserted", tscat.Event, event.uuid)
         self._select(event.uuid, tscat.Event)
-        self.uuid = event.uuid
 
     def _undo(self):
         event = get_entity_from_uuid_safe(self.uuid)
@@ -279,3 +280,35 @@ class DeletePermanently(_EntityBased):
 
         self.state.updated("inserted", type(entity), entity.uuid)
         self._select(entity.uuid)
+
+
+class Import(_EntityBased):
+    def __init__(self, state: AppState, filename: str, canonicalized_import_dict: dict, parent=None):
+        super().__init__(state, parent)
+
+        self.setText(f"Importing catalogues and events from {filename}.")
+
+        self.import_dict = canonicalized_import_dict
+
+    def _redo(self):
+        tscat.import_canonicalized_dict(deepcopy(self.import_dict))
+
+        # select one catalogue from the import to refresh the view
+        if len(self.import_dict["catalogues"]) > 0:
+            uuid = self.import_dict["catalogues"][-1]["uuid"]
+            self.state.updated("inserted", tscat.Catalogue, uuid)
+            self._select(uuid, tscat.Catalogue)
+
+    def _undo(self):
+        for event in self.import_dict["events"]:
+            ev = get_entity_from_uuid_safe(event["uuid"])
+            ev.remove(permanently=True)
+
+        for catalogue in self.import_dict["catalogues"]:
+            cat = get_entity_from_uuid_safe(catalogue["uuid"])
+            cat.remove(permanently=True)
+
+        if len(self.import_dict["catalogues"]) > 0:
+            uuid = self.import_dict["catalogues"][-1]["uuid"]
+            self.state.updated("deleted", tscat.Catalogue, uuid)
+            self._select(self.select_state.active)
