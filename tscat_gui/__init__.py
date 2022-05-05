@@ -142,6 +142,7 @@ class TSCatGUI(QtWidgets.QWidget):
                 self.restore_from_trash_action.setEnabled(False)
                 self.delete_action.setEnabled(False)
                 self.new_event_action.setEnabled(False)
+                self.export_action.setEnabled(False)
 
                 if uuid:
                     entity = get_entity_from_uuid_safe(uuid)
@@ -151,6 +152,7 @@ class TSCatGUI(QtWidgets.QWidget):
                         self.move_to_trash_action.setEnabled(True)
                     self.delete_action.setEnabled(True)
                     self.new_event_action.setEnabled(True)
+                    self.export_action.setEnabled(True)
 
         self.state.state_changed.connect(state_changed)
 
@@ -200,6 +202,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
         self.new_event_action = action
 
+        toolbar.addSeparator()
         action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton), "Save To Disk",
                                    self)
 
@@ -208,6 +211,7 @@ class TSCatGUI(QtWidgets.QWidget):
         action.setEnabled(False)
         self.state.undo_stack_clean_changed.connect(lambda state, a=action: a.setEnabled(not state))
 
+        toolbar.addSeparator()
         undo_action, redo_action = self.state.create_undo_redo_action()
 
         undo_action.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowBack))
@@ -217,6 +221,8 @@ class TSCatGUI(QtWidgets.QWidget):
         redo_action.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowForward))
         redo_action.setShortcut(QtCore.Qt.CTRL + QtCore.Qt.SHIFT + QtCore.Qt.Key_Z)
         toolbar.addAction(redo_action)
+
+        toolbar.addSeparator()
 
         action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_TrashIcon), "Move to Trash", self)
 
@@ -250,6 +256,8 @@ class TSCatGUI(QtWidgets.QWidget):
         toolbar.addAction(action)
         self.delete_action = action
 
+        toolbar.addSeparator()
+
         action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogRetryButton), "Refresh",
                                    self)
 
@@ -266,6 +274,40 @@ class TSCatGUI(QtWidgets.QWidget):
         toolbar.addAction(action)
 
         self.refresh_action = action
+
+        toolbar.addSeparator()
+
+        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowDown), "Export Catalogue",
+                                   self)
+
+        def export_to_file():
+            from pathlib import Path
+            filename, filetype = QtWidgets.QFileDialog.getSaveFileName(
+                self.activateWindow(),
+                "Specify the filename for exporting the selected catalogue",
+                str(Path.home()),
+                "JSON Document (*.json)")
+            if filename == '':
+                return
+
+            try:
+                with open(filename, 'w+') as f:
+                    catalogue = get_entity_from_uuid_safe(self.state.select_state().active_catalogue)
+                    json = tscat.export_json(catalogue)
+                    f.write(json)
+                QtWidgets.QMessageBox.information(self.activateWindow(),
+                                                  "Catalogue export",
+                                                  "The selected catalogue was successfully exported")
+            except Exception as e:
+                QtWidgets.QMessageBox.critical(self.activateWindow(),
+                                               "Catalogue export",
+                                               f"The selected catalogue could not be exported to {filename} due to '{e}'.")
+
+        action.triggered.connect(export_to_file)
+        action.setEnabled(False)
+        toolbar.addAction(action)
+
+        self.export_action = action
 
         layout.addWidget(toolbar)
         layout.addWidget(splitter)
