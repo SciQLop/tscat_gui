@@ -152,7 +152,7 @@ class NewCatalogue(_EntityBased):
         catalogue = tscat.Catalogue("New Catalogue", author=os.getlogin(), uuid=self.uuid)
 
         self.state.updated("inserted", tscat.Catalogue, catalogue.uuid)
-        self._select(catalogue.uuid)
+        self._select(catalogue.uuid, tscat.Catalogue)
         self.uuid = catalogue.uuid
 
     def _undo(self):
