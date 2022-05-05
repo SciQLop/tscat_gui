@@ -9,6 +9,7 @@ from PySide2 import QtCore
 
 from typing import Union
 import datetime as dt
+from pathlib import Path
 
 import tscat
 
@@ -17,7 +18,7 @@ from .model import CatalogueModel, EventModel, UUIDRole
 from .edit import EntityEditView
 from .state import AppState
 
-from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash, DeletePermanently, NewEvent
+from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash, DeletePermanently, NewEvent, Import
 
 from .utils.helper import get_entity_from_uuid_safe
 
@@ -277,11 +278,35 @@ class TSCatGUI(QtWidgets.QWidget):
 
         toolbar.addSeparator()
 
+        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowUp), "Import Catalogue",
+                                   self)
+
+        def import_from_file():
+            filename, filetype = QtWidgets.QFileDialog.getOpenFileName(
+                self.activateWindow(),
+                "Select a catalogue file to be imported",
+                str(Path.home()),
+                "JSON Document (*.json)")
+            if filename == '':
+                return
+
+            try:
+                with open(filename) as f:
+                    data = f.read()
+                    import_dict = tscat.canonicalize_json_import(data)
+                    self.state.push_undo_command(Import, filename, import_dict)
+            except Exception as e:
+                QtWidgets.QMessageBox.critical(self.activateWindow(),
+                                               "Catalogue import",
+                                               f"The selected file could not be imported: '{e}'.")
+
+        action.triggered.connect(import_from_file)
+        toolbar.addAction(action)
+
         action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowDown), "Export Catalogue",
                                    self)
 
         def export_to_file():
-            from pathlib import Path
             filename, filetype = QtWidgets.QFileDialog.getSaveFileName(
                 self.activateWindow(),
                 "Specify the filename for exporting the selected catalogue",
@@ -297,7 +322,7 @@ class TSCatGUI(QtWidgets.QWidget):
                     f.write(json)
                 QtWidgets.QMessageBox.information(self.activateWindow(),
                                                   "Catalogue export",
-                                                  "The selected catalogue was successfully exported")
+                                                  "The selected catalogue has been successfully exported")
             except Exception as e:
                 QtWidgets.QMessageBox.critical(self.activateWindow(),
                                                "Catalogue export",
