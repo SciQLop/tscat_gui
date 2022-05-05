@@ -58,7 +58,7 @@ class TSCatGUI(QtWidgets.QWidget):
         self.events_view = QtWidgets.QTableView()
         self.events_view.setMinimumSize(1000, 500)
         self.events_view.setSortingEnabled(True)
-        self.events_view.sortByColumn(-1, QtCore.Qt.SortOrder.AscendingOrder)
+        self.events_view.sortByColumn(0, QtCore.Qt.SortOrder.AscendingOrder)
 
         self.events_view.setModel(self.events_sort_model)
         self.events_view.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
@@ -98,7 +98,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
         self.catalogues_view.setModel(self.catalogue_sort_filter_model)
         self.catalogues_view.setSortingEnabled(True)
-        self.catalogues_view.sortByColumn(-1, QtCore.Qt.SortOrder.AscendingOrder)
+        self.catalogues_view.sortByColumn(0, QtCore.Qt.SortOrder.AscendingOrder)
 
         self.catalogues_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
