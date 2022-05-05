@@ -154,10 +154,6 @@ class TSCatGUI(QtWidgets.QWidget):
 
         self.state.state_changed.connect(state_changed)
 
-        layout = QtWidgets.QVBoxLayout()
-        layout.setMargin(0)
-        layout.addWidget(self.catalogues_view)
-
         hlayout = QtWidgets.QHBoxLayout()
         hlayout.setMargin(0)
         hlayout.addWidget(QtWidgets.QLabel('Filter:'))
@@ -165,7 +161,11 @@ class TSCatGUI(QtWidgets.QWidget):
         catalogue_filter.textChanged.connect(lambda t: self.catalogue_sort_filter_model.setFilterRegExp(t))
 
         hlayout.addWidget(catalogue_filter)
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.setMargin(0)
         layout.addLayout(hlayout)
+        layout.addWidget(self.catalogues_view)
 
         left_widget = QtWidgets.QWidget()
         left_widget.setLayout(layout)
