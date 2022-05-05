@@ -3,6 +3,7 @@ from PySide2 import QtWidgets
 from .utils.helper import get_entity_from_uuid_safe
 from .state import AppState
 
+import os
 import tscat
 
 import datetime as dt
@@ -148,7 +149,7 @@ class NewCatalogue(_EntityBased):
 
     def _redo(self):
         # the first time called it will create a new UUID
-        catalogue = tscat.Catalogue("New Catalogue", author="Author", uuid=self.uuid)
+        catalogue = tscat.Catalogue("New Catalogue", author=os.getlogin(), uuid=self.uuid)
 
         self.state.updated("inserted", tscat.Catalogue, catalogue.uuid)
         self._select(catalogue.uuid)
@@ -171,7 +172,7 @@ class NewEvent(_EntityBased):
         self.uuid = None
 
     def _redo(self):
-        event = tscat.Event(dt.datetime.now(), dt.datetime.now(), author="Author", uuid=self.uuid)
+        event = tscat.Event(dt.datetime.now(), dt.datetime.now(), author=os.getlogin(), uuid=self.uuid)
 
         catalogue = get_entity_from_uuid_safe(self.select_state.active_catalogue)
         catalogue.add_events(event)
