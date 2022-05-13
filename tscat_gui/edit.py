@@ -2,49 +2,19 @@ from PySide6 import QtCore, QtWidgets, QtGui
 
 from .utils.keyword_list import EditableKeywordListWidget
 from .utils.editable_label import EditableLabel
-from .utils.helper import get_entity_from_uuid_safe
+from .utils.helper import get_entity_from_uuid_safe, AttributeNameValidator, IntDelegate, FloatDelegate, \
+    DateTimeDelegate, StrDelegate, BoolDelegate
 
 from .undo import NewAttribute, RenameAttribute, DeleteAttribute, SetAttributeValue
 from .state import AppState
+
+from .predicate import SimplePredicateEditDialog
 
 from typing import Union
 
 import tscat
 
 import datetime as dt
-import re
-
-
-class _IntDelegate(QtWidgets.QSpinBox):
-    def __init__(self, value: int, parent: QtWidgets.QWidget = None):
-        super().__init__(parent)
-        self.setRange(-2 ** 31, 2 ** 31 - 1)
-        self.setValue(value)
-
-
-class _FloatDelegate(QtWidgets.QLineEdit):
-    def __init__(self, value: float, parent: QtWidgets.QWidget = None):
-        super().__init__(parent)
-
-        validator = QtGui.QDoubleValidator(self)
-        validator.setNotation(QtGui.QDoubleValidator.Notation.ScientificNotation)
-        self.setValidator(validator)
-
-        self.setText(str(value))
-
-    def value(self) -> float:
-        return float(self.text())
-
-class _BoolDelegate(QtWidgets.QCheckBox):
-    editingFinished = QtCore.Signal()
-
-    def __init__(self, value: float, parent: QtWidgets.QWidget = None):
-        super().__init__(parent)
-        self.setChecked(value)
-        self.stateChanged.connect(lambda: self.editingFinished.emit())
-
-    def value(self) -> bool:
-        return self.isChecked()
 
 
 class _UuidLabelDelegate(QtWidgets.QLabel):
@@ -55,31 +25,59 @@ class _UuidLabelDelegate(QtWidgets.QLabel):
         self.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
 
 
-class _StrDelegate(QtWidgets.QLineEdit):
-    def __init__(self, value: str, parent: QtWidgets.QWidget = None):
-        super().__init__(value, parent)
+class _PredicateDelegate(QtWidgets.QWidget):
+    editingFinished = QtCore.Signal()
 
-    def value(self) -> str:
-        return self.text()
+    def __init__(self, value: Union[tscat.Predicate, None], parent: QtWidgets.QWidget = None):
+        super().__init__(parent)
 
+        self.predicate = value
 
-class _DateTimeDelegate(QtWidgets.QDateTimeEdit):
-    def __init__(self, value: str, parent: QtWidgets.QWidget = None):
-        super().__init__(value, parent)
+        layout = QtWidgets.QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
 
-    def value(self) -> dt.datetime:
-        return self.dateTime().toPython()
+        value = str(value)
+        if len(value) > 50:
+            value = value[:50] + '...'
+        self.label = QtWidgets.QLabel(value)
+        layout.addWidget(self.label)
+
+        button = QtWidgets.QPushButton("Edit")
+        button.clicked.connect(self.edit_predicate)
+        layout.addWidget(button)
+
+        button = QtWidgets.QPushButton("Clear")
+        button.clicked.connect(self.clear_predicate)
+        layout.addWidget(button)
+        layout.addStretch()
+
+        self.setLayout(layout)
+
+    def edit_predicate(self):
+        dialog = SimplePredicateEditDialog(self.predicate, self)
+        result = dialog.exec_()
+        if result == QtWidgets.QDialog.Accepted:
+            self.predicate = dialog.predicate
+            self.editingFinished.emit()
+
+    def clear_predicate(self):
+        self.predicate = None
+        self.editingFinished.emit()
+
+    def value(self) -> Union[tscat.Predicate, None]:
+        return self.predicate
 
 
 _delegate_widget_class_factory = {
     'uuid': _UuidLabelDelegate,
+    'predicate': _PredicateDelegate,
 
-    int: _IntDelegate,
-    str: _StrDelegate,
-    float: _FloatDelegate,
+    int: IntDelegate,
+    str: StrDelegate,
+    float: FloatDelegate,
     list: EditableKeywordListWidget,
-    bool: _BoolDelegate,
-    dt.datetime: _DateTimeDelegate,
+    bool: BoolDelegate,
+    dt.datetime: DateTimeDelegate,
 }
 
 _type_name = {
@@ -163,31 +161,7 @@ class FixedAttributesGroupBox(AttributesGroupBox):
         entity = get_entity_from_uuid_safe(self.uuid)
         fixed_attributes = list(entity.fixed_attributes().keys())
 
-        if 'predicate' in fixed_attributes:
-            fixed_attributes.remove('predicate')
-
         super().setup(fixed_attributes, entity)
-
-
-_valid_attribute_name_re = re.compile(r'^[A-Za-z][A-Za-z_0-9]*$')
-
-
-class _AttributeNameValidator(QtGui.QValidator):
-    def __init__(self, invalid_words: list[str], parent=None):
-        super().__init__(parent)
-        self.invalid_words = invalid_words
-
-    def validate(self, word: str, pos: int) -> QtGui.QValidator.State:
-        if len(word) == 0:
-            return QtGui.QValidator.Intermediate
-
-        if word in self.invalid_words:
-            return QtGui.QValidator.Intermediate
-
-        if not _valid_attribute_name_re.match(word):
-            return QtGui.QValidator.Intermediate
-
-        return QtGui.QValidator.Acceptable
 
 
 class CustomAttributesGroupBox(AttributesGroupBox):
@@ -197,7 +171,7 @@ class CustomAttributesGroupBox(AttributesGroupBox):
                 list(self.entity.fixed_attributes().keys())
         attrs.remove(text)
 
-        name = EditableLabel(text, _AttributeNameValidator(list(attrs)))
+        name = EditableLabel(text, AttributeNameValidator(list(attrs)))
         name.editing_finished.connect(lambda x, _text=text: self._attribute_name_changed(_text, x))
         name.text_changed.connect(lambda x, _text=text: self._attribute_name_is_changing(_text, x))
 
