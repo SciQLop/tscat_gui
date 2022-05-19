@@ -10,6 +10,7 @@ from PySide2 import QtCore
 from typing import Union
 import datetime as dt
 from pathlib import Path
+import os
 
 import tscat
 
@@ -314,6 +315,9 @@ class TSCatGUI(QtWidgets.QWidget):
                 "JSON Document (*.json)")
             if filename == '':
                 return
+            split_filename = os.path.splitext(filename)
+            if split_filename[1] != '.json':
+                filename = split_filename[0] + '.json'
 
             try:
                 with open(filename, 'w+') as f:
