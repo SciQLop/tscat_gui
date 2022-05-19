@@ -4,8 +4,8 @@ __author__ = """Patrick Boettcher"""
 __email__ = 'p@yai.se'
 __version__ = '0.1.0'
 
-from PySide2 import QtWidgets
-from PySide2 import QtCore
+from PySide6 import QtWidgets, QtGui
+from PySide6 import QtCore
 
 from typing import Union
 import datetime as dt
@@ -159,7 +159,7 @@ class TSCatGUI(QtWidgets.QWidget):
         self.state.state_changed.connect(state_changed)
 
         hlayout = QtWidgets.QHBoxLayout()
-        hlayout.setMargin(0)
+        hlayout.setContentsMargins(0, 0, 0, 0)
         hlayout.addWidget(QtWidgets.QLabel('Filter:'))
         catalogue_filter = QtWidgets.QLineEdit()
         catalogue_filter.textChanged.connect(lambda t: self.catalogue_sort_filter_model.setFilterRegExp(t))
@@ -167,7 +167,7 @@ class TSCatGUI(QtWidgets.QWidget):
         hlayout.addWidget(catalogue_filter)
 
         layout = QtWidgets.QVBoxLayout()
-        layout.setMargin(0)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(hlayout)
         layout.addWidget(self.catalogues_view)
 
@@ -183,7 +183,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
         toolbar = QtWidgets.QToolBar()
 
-        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder),
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder),
                                    "Create Catalogue", self)
 
         def new_catalogue():
@@ -192,7 +192,7 @@ class TSCatGUI(QtWidgets.QWidget):
         action.triggered.connect(new_catalogue)
         toolbar.addAction(action)
 
-        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_FileIcon),
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_FileIcon),
                                    "Create Event", self)
 
         def new_event():
@@ -205,7 +205,7 @@ class TSCatGUI(QtWidgets.QWidget):
         self.new_event_action = action
 
         toolbar.addSeparator()
-        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton), "Save To Disk",
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton), "Save To Disk",
                                    self)
 
         action.triggered.connect(self.save)
@@ -226,7 +226,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
         toolbar.addSeparator()
 
-        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_TrashIcon), "Move to Trash", self)
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_TrashIcon), "Move to Trash", self)
 
         def trash():
             self.state.push_undo_command(MoveEntityToTrash)
@@ -236,7 +236,7 @@ class TSCatGUI(QtWidgets.QWidget):
         toolbar.addAction(action)
         self.move_to_trash_action = action
 
-        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogResetButton),
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogResetButton),
                                    "Restore from Trash", self)
 
         def restore():
@@ -247,7 +247,7 @@ class TSCatGUI(QtWidgets.QWidget):
         toolbar.addAction(action)
         self.restore_from_trash_action = action
 
-        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_BrowserStop), "Delete permanently",
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_BrowserStop), "Delete permanently",
                                    self)
 
         def delete():
@@ -260,7 +260,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
         toolbar.addSeparator()
 
-        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogRetryButton), "Refresh",
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogRetryButton), "Refresh",
                                    self)
 
         def refresh():
@@ -279,7 +279,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
         toolbar.addSeparator()
 
-        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowUp), "Import Catalogue",
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowUp), "Import Catalogue",
                                    self)
 
         def import_from_file():
@@ -304,7 +304,7 @@ class TSCatGUI(QtWidgets.QWidget):
         action.triggered.connect(import_from_file)
         toolbar.addAction(action)
 
-        action = QtWidgets.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowDown), "Export Catalogue",
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowDown), "Export Catalogue",
                                    self)
 
         def export_to_file():

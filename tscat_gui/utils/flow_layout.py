@@ -1,4 +1,4 @@
-from PySide2 import QtWidgets, QtCore
+from PySide6 import QtWidgets, QtCore
 
 
 # from https://doc.qt.io/qtforpython/examples/example_widgets_layouts_flowlayout.html

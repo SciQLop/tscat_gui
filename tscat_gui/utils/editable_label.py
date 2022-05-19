@@ -1,4 +1,4 @@
-from PySide2 import QtCore, QtWidgets, QtGui
+from PySide6 import QtCore, QtWidgets, QtGui
 
 
 class EditableLabel(QtWidgets.QFrame):
@@ -74,7 +74,7 @@ class EditableLabel(QtWidgets.QFrame):
         self.lineedit = None
 
         self.layout = QtWidgets.QHBoxLayout()
-        self.layout.setMargin(0)
+        self.layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self.layout)
 
         self.display()

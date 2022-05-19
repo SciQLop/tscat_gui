@@ -1,4 +1,4 @@
-from PySide2 import QtWidgets
+from PySide6 import QtGui
 
 from .utils.helper import get_entity_from_uuid_safe
 from .state import AppState
@@ -11,7 +11,7 @@ import datetime as dt
 from typing import Union
 
 
-class _EntityBased(QtWidgets.QUndoCommand):
+class _EntityBased(QtGui.QUndoCommand):
     def __init__(self, state: AppState, parent=None):
         super().__init__(parent)
 
