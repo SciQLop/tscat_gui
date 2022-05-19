@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from PySide2 import QtWidgets
+from PySide6 import QtWidgets
 
 import sys
 import logging

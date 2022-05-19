@@ -1,4 +1,4 @@
-from PySide2 import QtCore, QtWidgets, QtGui
+from PySide6 import QtCore, QtWidgets, QtGui
 
 from .utils.keyword_list import EditableKeywordListWidget
 from .utils.editable_label import EditableLabel
@@ -111,7 +111,7 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
         self.state = state
 
         layout = QtWidgets.QGridLayout()
-        layout.setMargin(0)
+        layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
     def setup(self, attributes: list[str], entity: Union[tscat.Catalogue, tscat.Event]):
@@ -224,7 +224,7 @@ class CustomAttributesGroupBox(AttributesGroupBox):
             layout.addWidget(but, row, 2)
 
         new_section_layout = QtWidgets.QHBoxLayout()
-        new_section_layout.setMargin(0)
+        new_section_layout.setContentsMargins(0, 0, 0, 0)
 
         self.type_combobox = QtWidgets.QComboBox()
         self.type_combobox.addItems(list(_type_name.keys()))

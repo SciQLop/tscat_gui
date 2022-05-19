@@ -1,5 +1,5 @@
-from PySide2 import QtWidgets
-from PySide2 import QtCore
+from PySide6 import QtWidgets, QtGui
+from PySide6 import QtCore
 
 import tscat
 
@@ -27,7 +27,7 @@ class AppState(QtCore.QObject):
         self.active_type: Union[tscat.Catalogue, tscat.Event] = tscat.Catalogue
         self.active_catalogue: str = None
 
-        self._undo_stack = QtWidgets.QUndoStack()
+        self._undo_stack = QtGui.QUndoStack()
         self._undo_stack.cleanChanged.connect(lambda x: self.undo_stack_clean_changed.emit(x))
 
     def push_undo_command(self, cls, *args) -> None:

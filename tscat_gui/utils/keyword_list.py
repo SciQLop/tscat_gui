@@ -1,7 +1,7 @@
 from .flow_layout import FlowLayout
 from .editable_label import EditableLabel
 
-from PySide2 import QtWidgets, QtCore, QtGui
+from PySide6 import QtWidgets, QtCore, QtGui
 
 import re
 
@@ -63,7 +63,7 @@ class _Keyword(EditableLabel):
         self.delete_label.clicked.connect(lambda: self.closed.emit(self))
 
         self.layout.addWidget(self.delete_label)
-        self.layout.setMargin(5)
+        self.layout.setContentsMargins(5, 5, 5, 5)
 
         self.setObjectName('OneKeyword')
         self.setStyleSheet(f"""#OneKeyword {{
