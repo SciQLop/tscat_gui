@@ -205,6 +205,47 @@ class _Comparison(_PredicateWidget):
         return _Comparison.OP_LABELS.index(self._op_label.text())
 
 
+class _AttributeIsPresent(_PredicateWidget):
+    OP_HAS = 0
+    OP_HAS_NOT = 1
+
+    OP_LABELS = ['is present', 'is not present']
+
+    def __init__(self, predicate: Union[Has, None], negate: bool, parent: _PredicateWidget):
+        super().__init__(parent)
+
+        self._negated = negate
+
+        c = QtWidgets.QHBoxLayout()
+        c.setContentsMargins(0, 0, 0, 0)
+
+        c.addWidget(QtWidgets.QLabel("Attribute"))
+
+        self.attribute = EditableLabel.LineEdit(predicate._operand.value if predicate else "", AttributeNameValidator())
+        self.attribute.finished.connect(lambda: self.changed.emit())
+
+        c.addWidget(self.attribute)
+
+        self._op_label = QtWidgets.QLabel()
+        self.set_operator(_AttributeIsPresent.OP_HAS_NOT if negate else _AttributeIsPresent.OP_HAS)
+        c.addWidget(self._op_label)
+
+        self.setLayout(c)
+
+    def predicate(self) -> Union[Has, Not]:
+        predicate = Has(Attribute(self.attribute.text()))
+        if self._negated:
+            return Not(predicate)
+        return predicate
+
+    def set_operator(self, op):
+        self._negated = op == _AttributeIsPresent.OP_HAS_NOT
+        self._op_label.setText(_AttributeIsPresent.OP_LABELS[op])
+
+    def operator_index(self):
+        return _AttributeIsPresent.OP_LABELS.index(self._op_label.text())
+
+
 operators = [
     ['Equal', _Comparison, _Comparison.OP_EQ],
     ['Not Equal', _Comparison, _Comparison.OP_NE],
@@ -218,8 +259,8 @@ operators = [
     # ['Not In String List', In],
     # ['In Catalogue', InCatalogue],
     # ['Not In Catalogue', InCatalogue],
-    # ['Attribute Present', Has],
-    # ['Attribute Not Present', Has],
+    ['Attribute Present', _AttributeIsPresent, _AttributeIsPresent.OP_HAS],
+    ['Attribute Not Present', _AttributeIsPresent, _AttributeIsPresent.OP_HAS_NOT],
 ]
 
 
@@ -246,7 +287,10 @@ class _Condition(_PredicateWidget):
 
         if type(predicate) in [Comparison, Match] or predicate is None:
             self.condition = _Comparison(predicate, negate, self)
-            self.condition.changed.connect(lambda: self.changed.emit())
+        elif type(predicate) == Has:
+            self.condition = _AttributeIsPresent(predicate, negate, self)
+
+        self.condition.changed.connect(lambda: self.changed.emit())
 
         self.conditions_seen = {type(self.condition): self.condition}
 
@@ -273,7 +317,8 @@ class _Condition(_PredicateWidget):
             if data[1] in self.conditions_seen:
                 self.condition = self.conditions_seen[data[1]]
             else:
-                self.condition = data[1](None, self)
+                self.condition = data[1](None, False, self)
+                self.condition.set_operator(data[2])
                 self.condition.changed.connect(lambda: self.changed.emit())
                 self.conditions_seen[type(self.condition)] = self.condition
 
@@ -496,24 +541,3 @@ class SimplePredicateEditDialog(QtWidgets.QDialog):
 #         self.setLayout(c)
 #
 #
-# class _AttributeIsPresent(QtWidgets.QWidget):
-#     def __init__(self, predicate: tscat.Predicate = None, parent=None):
-#         super().__init__(parent)
-#
-#         c = QtWidgets.QHBoxLayout()
-#         c.setContentsMargins(0, 0, 0, 0)
-#
-#         c.addWidget(QtWidgets.QLabel("Attribute"))
-#
-#         self.value = 'attribute'
-#         le = EditableLabel.LineEdit(self.value, AttributeNameValidator())
-#
-#         le.changed.connect(lambda x: print('changed', x))
-#         le.finished.connect(lambda: print("editing finished"))
-#         le.canceled.connect(lambda _le=le: _le.setText(self.value))
-#
-#         c.addWidget(le)
-#
-#         c.addWidget(QtWidgets.QLabel("is present"))
-#
-#         self.setLayout(c)
