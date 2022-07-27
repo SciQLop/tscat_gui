@@ -246,6 +246,56 @@ class _AttributeIsPresent(_PredicateWidget):
         return _AttributeIsPresent.OP_LABELS.index(self._op_label.text())
 
 
+class _StringInStringList(_PredicateWidget):
+    OP_IN = 0
+    OP_NOT_IN = 1
+
+    OP_LABELS = ['is in string-list', 'is not in string-list']
+
+    event_fixed_keys = ['tags', 'products']
+
+    def __init__(self, predicate: Union[In, None], negate: bool, parent: _PredicateWidget):
+        super().__init__(parent)
+
+        self._negated = negate
+
+        c = QtWidgets.QHBoxLayout()
+        c.setContentsMargins(0, 0, 0, 0)
+
+        c.addWidget(QtWidgets.QLabel("String"))
+
+        self.le = QtWidgets.QLineEdit(predicate._lhs if predicate else "")
+        c.addWidget(self.le)
+
+        self._op_label = QtWidgets.QLabel()
+        self.set_operator(_StringInStringList.OP_NOT_IN if negate else _StringInStringList.OP_IN)
+        c.addWidget(self._op_label)
+
+        self.attribute = EditableLabel.LineEdit(predicate._rhs.value if predicate else "", AttributeNameValidator())
+        completer = QtWidgets.QCompleter(_StringInStringList.event_fixed_keys, parent=self)
+        completer.setCaseSensitivity(QtCore.Qt.CaseSensitive)
+        self.attribute.setCompleter(completer)
+        self.attribute.finished.connect(lambda: self.changed.emit())
+
+        c.addWidget(self.attribute)
+
+        self.setLayout(c)
+
+    def predicate(self) -> Union[In, Not]:
+        attr_or_field_type = Field if self.attribute.text() in _StringInStringList.event_fixed_keys else Attribute
+        predicate = In(self.le.text(), attr_or_field_type(self.attribute.text()))
+        if self._negated:
+            return Not(predicate)
+        return predicate
+
+    def set_operator(self, op):
+        self._negated = op == _StringInStringList.OP_NOT_IN
+        self._op_label.setText(_StringInStringList.OP_LABELS[op])
+
+    def operator_index(self):
+        return _StringInStringList.OP_LABELS.index(self._op_label.text())
+
+
 operators = [
     ['Equal', _Comparison, _Comparison.OP_EQ],
     ['Not Equal', _Comparison, _Comparison.OP_NE],
@@ -255,8 +305,8 @@ operators = [
     ['Greater Or Equal Than', _Comparison, _Comparison.OP_GE],
     ['Match Regex', _Comparison, _Comparison.OP_MATCH],
     ['Does Not Match Regex', _Comparison, _Comparison.OP_NOT_MATCH],
-    # ['In String List', In],
-    # ['Not In String List', In],
+    ['In String List', _StringInStringList, _StringInStringList.OP_IN],
+    ['Not In String List', _StringInStringList, _StringInStringList.OP_NOT_IN],
     # ['In Catalogue', InCatalogue],
     # ['Not In Catalogue', InCatalogue],
     ['Attribute Present', _AttributeIsPresent, _AttributeIsPresent.OP_HAS],
@@ -289,6 +339,8 @@ class _Condition(_PredicateWidget):
             self.condition = _Comparison(predicate, negate, self)
         elif type(predicate) == Has:
             self.condition = _AttributeIsPresent(predicate, negate, self)
+        elif type(predicate) == In:
+            self.condition = _StringInStringList(predicate, negate, self)
 
         self.condition.changed.connect(lambda: self.changed.emit())
 
@@ -510,33 +562,6 @@ class SimplePredicateEditDialog(QtWidgets.QDialog):
 #             cb.addItem(cat.name + " (in trash)", cat.uuid)
 #
 #         c.addWidget(cb)
-#
-#         self.setLayout(c)
-#
-#
-# class _StringInStringList(QtWidgets.QWidget):
-#     def __init__(self, predicate: tscat.Predicate = None, parent=None):
-#         super().__init__(parent)
-#
-#         c = QtWidgets.QHBoxLayout()
-#         c.setContentsMargins(0, 0, 0, 0)
-#
-#         c.addWidget(QtWidgets.QLabel("String"))
-#
-#         le = QtWidgets.QLineEdit()
-#         c.addWidget(le)
-#
-#         c.addWidget(QtWidgets.QLabel("in string-list of"))
-#
-#         self.value = 'attribute'
-#
-#         le = EditableLabel.LineEdit(self.value, AttributeNameValidator())
-#
-#         le.changed.connect(lambda x: print('changed', x))
-#         le.finished.connect(lambda: print("editing finished"))
-#         le.canceled.connect(lambda _le=le: _le.setText(self.value))
-#
-#         c.addWidget(le)
 #
 #         self.setLayout(c)
 #
