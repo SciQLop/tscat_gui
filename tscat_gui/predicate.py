@@ -214,8 +214,6 @@ class _AttributeIsPresent(_PredicateWidget):
     def __init__(self, predicate: Union[Has, None], negate: bool, parent: _PredicateWidget):
         super().__init__(parent)
 
-        self._negated = negate
-
         c = QtWidgets.QHBoxLayout()
         c.setContentsMargins(0, 0, 0, 0)
 
@@ -234,12 +232,11 @@ class _AttributeIsPresent(_PredicateWidget):
 
     def predicate(self) -> Union[Has, Not]:
         predicate = Has(Attribute(self.attribute.text()))
-        if self._negated:
+        if self.operator_index() == _AttributeIsPresent.OP_HAS_NOT:
             return Not(predicate)
         return predicate
 
     def set_operator(self, op):
-        self._negated = op == _AttributeIsPresent.OP_HAS_NOT
         self._op_label.setText(_AttributeIsPresent.OP_LABELS[op])
 
     def operator_index(self):
@@ -256,8 +253,6 @@ class _StringInStringList(_PredicateWidget):
 
     def __init__(self, predicate: Union[In, None], negate: bool, parent: _PredicateWidget):
         super().__init__(parent)
-
-        self._negated = negate
 
         c = QtWidgets.QHBoxLayout()
         c.setContentsMargins(0, 0, 0, 0)
@@ -284,16 +279,56 @@ class _StringInStringList(_PredicateWidget):
     def predicate(self) -> Union[In, Not]:
         attr_or_field_type = Field if self.attribute.text() in _StringInStringList.event_fixed_keys else Attribute
         predicate = In(self.le.text(), attr_or_field_type(self.attribute.text()))
-        if self._negated:
+        if self.operator_index() == _StringInStringList.OP_NOT_IN:
             return Not(predicate)
         return predicate
 
     def set_operator(self, op):
-        self._negated = op == _StringInStringList.OP_NOT_IN
         self._op_label.setText(_StringInStringList.OP_LABELS[op])
 
     def operator_index(self):
         return _StringInStringList.OP_LABELS.index(self._op_label.text())
+
+
+class _InCatalogue(_PredicateWidget):
+    OP_IN = 0
+    OP_NOT_IN = 1
+
+    OP_LABELS = ['is in catalogue', 'is not in catalogue']
+
+    def __init__(self, predicate: Union[InCatalogue, None], negate: bool, parent: _PredicateWidget):
+        super().__init__(parent)
+
+        c = QtWidgets.QHBoxLayout()
+        c.setContentsMargins(0, 0, 0, 0)
+
+        self._op_label = QtWidgets.QLabel()
+        self.set_operator(_InCatalogue.OP_NOT_IN if negate else _InCatalogue.OP_IN)
+        c.addWidget(self._op_label)
+
+        self.catalogues = QtWidgets.QComboBox()
+        for cat in tscat.get_catalogues():
+            self.catalogues.addItem(cat.name, cat)
+
+        for cat in tscat.get_catalogues(removed_items=True):
+            self.catalogues.addItem(cat.name + " (in trash)", cat)
+        self.catalogues.currentIndexChanged.connect(lambda: self.changed.emit())
+
+        c.addWidget(self.catalogues)
+
+        self.setLayout(c)
+
+    def predicate(self) -> Union[In, Not]:
+        predicate = InCatalogue(self.catalogues.itemData(self.catalogues.currentIndex()))
+        if self.operator_index() == _InCatalogue.OP_NOT_IN:
+            return Not(predicate)
+        return predicate
+
+    def set_operator(self, op):
+        self._op_label.setText(_InCatalogue.OP_LABELS[op])
+
+    def operator_index(self):
+        return _InCatalogue.OP_LABELS.index(self._op_label.text())
 
 
 operators = [
@@ -307,8 +342,8 @@ operators = [
     ['Does Not Match Regex', _Comparison, _Comparison.OP_NOT_MATCH],
     ['In String List', _StringInStringList, _StringInStringList.OP_IN],
     ['Not In String List', _StringInStringList, _StringInStringList.OP_NOT_IN],
-    # ['In Catalogue', InCatalogue],
-    # ['Not In Catalogue', InCatalogue],
+    ['In Catalogue', _InCatalogue, _InCatalogue.OP_IN],
+    ['Not In Catalogue', _InCatalogue, _InCatalogue.OP_NOT_IN],
     ['Attribute Present', _AttributeIsPresent, _AttributeIsPresent.OP_HAS],
     ['Attribute Not Present', _AttributeIsPresent, _AttributeIsPresent.OP_HAS_NOT],
 ]
@@ -341,6 +376,8 @@ class _Condition(_PredicateWidget):
             self.condition = _AttributeIsPresent(predicate, negate, self)
         elif type(predicate) == In:
             self.condition = _StringInStringList(predicate, negate, self)
+        elif type(predicate) == InCatalogue:
+            self.condition = _InCatalogue(predicate, negate, self)
 
         self.condition.changed.connect(lambda: self.changed.emit())
 
@@ -544,25 +581,3 @@ class SimplePredicateEditDialog(QtWidgets.QDialog):
         layout.addLayout(last_line_layout)
 
         self.setLayout(layout)
-
-# class _InCatalogue(QtWidgets.QWidget):
-#     def __init__(self, predicate: tscat.Predicate = None, parent=None):
-#         super().__init__(parent)
-#
-#         c = QtWidgets.QHBoxLayout()
-#         c.setContentsMargins(0, 0, 0, 0)
-#
-#         c.addWidget(QtWidgets.QLabel("In catalogue"))
-#
-#         cb = QtWidgets.QComboBox()
-#         for cat in tscat.get_catalogues():
-#             cb.addItem(cat.name, cat.uuid)
-#
-#         for cat in tscat.get_catalogues(removed_items=True):
-#             cb.addItem(cat.name + " (in trash)", cat.uuid)
-#
-#         c.addWidget(cb)
-#
-#         self.setLayout(c)
-#
-#
