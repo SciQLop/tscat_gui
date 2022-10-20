@@ -1,3 +1,5 @@
+import typing
+
 from PySide6 import QtCore, QtWidgets, QtGui
 
 
@@ -16,12 +18,12 @@ class EditableLabel(QtWidgets.QFrame):
                 self.clicked.emit()
             super().mousePressEvent(event)
 
-        def enterEvent(self, event: QtCore.QEvent) -> None:
-            self.setCursor(QtCore.Qt.IBeamCursor)
+        def enterEvent(self, event: QtCore.QEvent) -> None:  # type: ignore
+            self.setCursor(QtCore.Qt.IBeamCursor)  # type: ignore
             super().enterEvent(event)
 
         def leaveEvent(self, event: QtCore.QEvent) -> None:
-            self.setCursor(QtCore.Qt.ArrowCursor)
+            self.setCursor(QtCore.Qt.ArrowCursor)  # type: ignore
             super().leaveEvent(event)
 
     class LineEdit(QtWidgets.QLineEdit):
@@ -34,13 +36,13 @@ class EditableLabel(QtWidgets.QFrame):
 
             self.setValidator(validator)
 
-            self.textChanged.connect(self.text_changed)
-            self.returnPressed.connect(lambda: self.finished.emit())
-            self.editingFinished.connect(lambda: self.finished.emit())
+            self.textChanged.connect(self.text_changed)  # type: ignore
+            self.returnPressed.connect(lambda: self.finished.emit())  # type: ignore
+            self.editingFinished.connect(lambda: self.finished.emit())  # type: ignore
 
         def text_changed(self, text: str):
             if self.validator():
-                if self.validator().validate(text, len(text) - 1) == QtGui.QValidator.Acceptable:
+                if self.validator().validate(text, len(text) - 1) == QtGui.QValidator.Acceptable:  # type: ignore
                     self.setStyleSheet('border: 1px solid green')
                 else:
                     self.setStyleSheet('border: 1px solid red')
@@ -49,7 +51,8 @@ class EditableLabel(QtWidgets.QFrame):
         def focusOutEvent(self, event: QtGui.QFocusEvent) -> None:
             # keep focus here if value is not valid
             if self.validator() is None or \
-                self.validator().validate(self.text(), len(self.text()) - 1) == QtGui.QValidator.Acceptable:
+                self.validator().validate(self.text(),
+                                          len(self.text()) - 1) == QtGui.QValidator.Acceptable:  # type: ignore
                 self.finished.emit()
             else:
                 self.canceled.emit()
@@ -58,7 +61,7 @@ class EditableLabel(QtWidgets.QFrame):
             super().focusOutEvent(event)
 
         def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
-            if event.key() == QtCore.Qt.Key_Escape:
+            if event.key() == QtCore.Qt.Key_Escape:  # type: ignore
                 self.canceled.emit()
 
             super().keyPressEvent(event)
@@ -66,16 +69,16 @@ class EditableLabel(QtWidgets.QFrame):
     def __init__(self, text: str, validator: QtGui.QValidator = None, parent=None):
         super().__init__(parent)
 
-        self.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)  # type: ignore
 
         self.text = text
         self.validator = validator
-        self.label = None
+        self.label: typing.Optional[EditableLabel.Label] = None
         self.lineedit = None
 
-        self.layout = QtWidgets.QHBoxLayout()
-        self.layout.setContentsMargins(0, 0, 0, 0)
-        self.setLayout(self.layout)
+        self._layout = QtWidgets.QHBoxLayout()
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(self._layout)
 
         self.display()
 
@@ -84,20 +87,20 @@ class EditableLabel(QtWidgets.QFrame):
             return
 
         if self.lineedit:
-            self.layout.removeWidget(self.lineedit)
+            self._layout.removeWidget(self.lineedit)
             self.lineedit.deleteLater()
             self.lineedit = None
 
         self.label = EditableLabel.Label(self.text)
         self.label.clicked.connect(self.edit)
-        self.layout.insertWidget(0, self.label)
+        self._layout.insertWidget(0, self.label)
 
     def edit(self):
         if self.lineedit:
             return
 
         if self.label:
-            self.layout.removeWidget(self.label)
+            self._layout.removeWidget(self.label)
             self.label.deleteLater()
             self.label = None
 
@@ -106,7 +109,7 @@ class EditableLabel(QtWidgets.QFrame):
         self.lineedit.finished.connect(self.finish_editing)
         self.lineedit.canceled.connect(self.cancel_editing)
 
-        self.layout.insertWidget(0, self.lineedit)
+        self._layout.insertWidget(0, self.lineedit)
 
         self.lineedit.setFocus()
 

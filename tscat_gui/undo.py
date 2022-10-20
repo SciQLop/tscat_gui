@@ -1,3 +1,5 @@
+import abc
+
 from PySide6 import QtGui
 
 from .utils.helper import get_entity_from_uuid_safe
@@ -8,7 +10,10 @@ import tscat
 from copy import deepcopy
 
 import datetime as dt
-from typing import Union
+from typing import Union, Optional, Type, List
+from uuid import UUID
+
+
 
 
 class _EntityBased(QtGui.QUndoCommand):
@@ -18,12 +23,12 @@ class _EntityBased(QtGui.QUndoCommand):
         self.state = state
         self.select_state = state.select_state()
 
-    def _select(self, uuid: str, type: Union[tscat.Catalogue, tscat.Event, None] = None):
+    def _select(self, uuid: str, type: Optional[Union[Type[tscat._Catalogue], Type[tscat._Event]]] = None):
         if type is None:
             type = self.select_state.type
 
-        if type == tscat.Event:
-            self.state.updated('passive_select', tscat.Catalogue, self.select_state.active_catalogue)
+        if type == tscat._Event:
+            self.state.updated('passive_select', tscat._Catalogue, self.select_state.active_catalogue)
         self.state.updated('active_select', type, uuid)
 
     def redo(self) -> None:
@@ -31,6 +36,14 @@ class _EntityBased(QtGui.QUndoCommand):
 
     def undo(self) -> None:
         self._undo()
+
+    @abc.abstractmethod
+    def _redo(self) -> None:
+        pass
+
+    @abc.abstractmethod
+    def _undo(self) -> None:
+        pass
 
 
 class NewAttribute(_EntityBased):
@@ -150,17 +163,17 @@ class NewCatalogue(_EntityBased):
 
     def _redo(self):
         # the first time called it will create a new UUID
-        catalogue = tscat.Catalogue("New Catalogue", author=os.getlogin(), uuid=self.uuid)
+        catalogue = tscat.create_catalogue("New Catalogue", author=os.getlogin(), uuid=self.uuid)
         self.uuid = catalogue.uuid
 
-        self.state.updated("inserted", tscat.Catalogue, catalogue.uuid)
-        self._select(catalogue.uuid, tscat.Catalogue)
+        self.state.updated("inserted", tscat._Catalogue, catalogue.uuid)
+        self._select(catalogue.uuid, tscat._Catalogue)
 
     def _undo(self):
         catalogue = get_entity_from_uuid_safe(self.uuid)
         catalogue.remove(permanently=True)
 
-        self.state.updated("deleted", tscat.Catalogue, catalogue.uuid)
+        self.state.updated("deleted", tscat._Catalogue, catalogue.uuid)
         self._select(self.select_state.active)
 
 
@@ -173,20 +186,20 @@ class NewEvent(_EntityBased):
         self.uuid = None
 
     def _redo(self):
-        event = tscat.Event(dt.datetime.now(), dt.datetime.now(), author=os.getlogin(), uuid=self.uuid)
+        event = tscat.create_event(dt.datetime.now(), dt.datetime.now(), author=os.getlogin(), uuid=self.uuid)
         self.uuid = event.uuid
 
         catalogue = get_entity_from_uuid_safe(self.select_state.active_catalogue)
-        catalogue.add_events(event)
+        tscat.add_events_to_catalogue(catalogue, event)
 
-        self.state.updated("inserted", tscat.Event, event.uuid)
-        self._select(event.uuid, tscat.Event)
+        self.state.updated("inserted", tscat._Event, event.uuid)
+        self._select(event.uuid, tscat._Event)
 
     def _undo(self):
         event = get_entity_from_uuid_safe(self.uuid)
         event.remove(permanently=True)
 
-        self.state.updated("deleted", tscat.Event, event.uuid)
+        self.state.updated("deleted", tscat._Event, event.uuid)
         self._select(self.select_state.active)
 
 
@@ -244,14 +257,14 @@ class DeletePermanently(_EntityBased):
         self.entity_type = None
         self.deleted_entity_data = None
         self.entity_in_trash = None
-        self.linked_uuids = []
+        self.linked_uuids: List[UUID] = []
 
     def _redo(self):
         entity = get_entity_from_uuid_safe(self.select_state.active)
         self.entity_type = type(entity)
         self.entity_in_trash = entity.is_removed()
 
-        if self.entity_type == tscat.Catalogue:
+        if self.entity_type == tscat._Catalogue:
             self.linked_uuids = [e.uuid for e in tscat.get_events(entity)]
         else:
             self.linked_uuids = [e.uuid for e in tscat.get_catalogues(entity)]
@@ -272,7 +285,7 @@ class DeletePermanently(_EntityBased):
             entity.remove()
 
         linked_entities = [get_entity_from_uuid_safe(uuid) for uuid in self.linked_uuids]
-        if type(entity) == tscat.Catalogue:
+        if type(entity) == tscat._Catalogue:
             entity.add_events(linked_entities)
         else:
             for e in linked_entities:
@@ -296,8 +309,8 @@ class Import(_EntityBased):
         # select one catalogue from the import to refresh the view
         if len(self.import_dict["catalogues"]) > 0:
             uuid = self.import_dict["catalogues"][-1]["uuid"]
-            self.state.updated("inserted", tscat.Catalogue, uuid)
-            self._select(uuid, tscat.Catalogue)
+            self.state.updated("inserted", tscat._Catalogue, uuid)
+            self._select(uuid, tscat._Catalogue)
 
     def _undo(self):
         for event in self.import_dict["events"]:
@@ -310,5 +323,5 @@ class Import(_EntityBased):
 
         if len(self.import_dict["catalogues"]) > 0:
             uuid = self.import_dict["catalogues"][-1]["uuid"]
-            self.state.updated("deleted", tscat.Catalogue, uuid)
+            self.state.updated("deleted", tscat._Catalogue, uuid)
             self._select(self.select_state.active)

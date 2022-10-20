@@ -10,7 +10,7 @@ from .state import AppState
 
 from .predicate import SimplePredicateEditDialog
 
-from typing import Union
+from typing import Union, Dict, Optional
 
 import tscat
 
@@ -22,7 +22,7 @@ class _UuidLabelDelegate(QtWidgets.QLabel):
 
     def __init__(self, value: str, parent: QtWidgets.QWidget = None):
         super().__init__(value, parent)
-        self.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+        self.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)  # type: ignore
 
 
 class _PredicateDelegate(QtWidgets.QWidget):
@@ -36,18 +36,18 @@ class _PredicateDelegate(QtWidgets.QWidget):
         layout = QtWidgets.QHBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
 
-        value = str(value)
-        if len(value) > 50:
-            value = value[:50] + '...'
-        self.label = QtWidgets.QLabel(value)
+        value_str = str(value)
+        if len(value_str) > 50:
+            value_str = value_str[:50] + '...'
+        self.label = QtWidgets.QLabel(value_str)
         layout.addWidget(self.label)
 
         button = QtWidgets.QPushButton("Edit")
-        button.clicked.connect(self.edit_predicate)
+        button.clicked.connect(self.edit_predicate)  # type: ignore
         layout.addWidget(button)
 
         button = QtWidgets.QPushButton("Clear")
-        button.clicked.connect(self.clear_predicate)
+        button.clicked.connect(self.clear_predicate)  # type: ignore
         layout.addWidget(button)
         layout.addStretch()
 
@@ -97,38 +97,36 @@ _type_name_initial_value = {
 class AttributesGroupBox(QtWidgets.QGroupBox):
     valuesChanged = QtCore.Signal()
 
-    def create_label(self, text: str):
+    def create_label(self, text: str) -> QtWidgets.QLabel:
         return QtWidgets.QLabel(text.title())
 
     def __init__(self, title: str, uuid: str, state: AppState, parent: QtWidgets.QWidget = None):
         super().__init__(title, parent)
 
         self.uuid = uuid
-        self.entity = None
-        self.attribute_name_labels = {}
+        self.entity: Union[tscat._Catalogue, tscat._Event]
+        self.attribute_name_labels: Dict[str, QtWidgets.QLabel] = {}
         self.state = state
 
-        layout = QtWidgets.QGridLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        self.setLayout(layout)
+        self._layout = QtWidgets.QGridLayout()
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(self._layout)
 
-    def setup(self, attributes: list[str], entity: Union[tscat.Catalogue, tscat.Event]):
+    def setup(self, attributes: list[str], entity: Union[tscat._Catalogue, tscat._Event]):
         self.entity = entity
 
         # clear layout, destroy all widgets
-        layout = self.layout()
-        if layout:
-            while True:
-                item = layout.takeAt(0)
-                if item:
-                    item.widget().deleteLater()
-                else:
-                    break
+        while True:
+            item = self._layout.takeAt(0)
+            if item:
+                item.widget().deleteLater()
+            else:
+                break
 
         self.attribute_name_labels = {}
         for row, attr in enumerate(attributes):
             label = self.create_label(attr)
-            layout.addWidget(label, row, 0)
+            self._layout.addWidget(label, row, 0)
 
             self.attribute_name_labels[attr] = label
 
@@ -142,7 +140,7 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
             widget = cls(value)
             widget.editingFinished.connect(lambda w=widget, a=attr: self._editing_finished(a, w.value()))
 
-            layout.addWidget(widget, row, 1)
+            self._layout.addWidget(widget, row, 1)
 
     def _editing_finished(self, attr, value):
         if value != self.entity.__dict__[attr]:
@@ -243,8 +241,7 @@ class CustomAttributesGroupBox(AttributesGroupBox):
         for label in self.attribute_name_labels.values():
             label.setStyleSheet('background-color: none')
 
-        label = self.attribute_name_labels.get(text)
-        if label and previous != text:
+        if text in self.attribute_name_labels and previous != text:
             self.attribute_name_labels[text].setStyleSheet('color: red')
 
 
@@ -275,18 +272,18 @@ class EntityEditView(QtWidgets.QScrollArea):
     def __init__(self, state: AppState, parent=None):
         super().__init__(parent)
 
-        self.edit = None
+        self.edit: Optional[_EntityEditWidget] = None
         self.state = state
-        self.current = None
+        self.current_uuid: Optional[str] = None
 
-        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)  # type: ignore
         self.setWidgetResizable(True)
 
         self.state.state_changed.connect(self.state_changed)
 
     def state_changed(self, action: str, type, uuid: str):
         if action == 'active_select':
-            if self.current != uuid:
+            if self.current_uuid != uuid:
                 if self.edit:
                     self.edit.deleteLater()
                     self.edit = None
@@ -294,11 +291,12 @@ class EntityEditView(QtWidgets.QScrollArea):
                 if uuid:
                     self.edit = _EntityEditWidget(uuid, self.state)
                     self.setWidget(self.edit)
-                self.current = uuid
-        elif action == 'deleted' and self.current == uuid:
+                self.current_uuid = uuid
+        elif action == 'deleted' and self.current_uuid == uuid:
             if self.edit:
                 self.edit.deleteLater()
                 self.edit = None
-            self.current = None
-        elif action == 'changed' and self.current == uuid:
-            self.edit.setup()
+            self.current_uuid = None
+        elif action == 'changed' and self.current_uuid == uuid:
+            if self.edit:
+                self.edit.setup()
