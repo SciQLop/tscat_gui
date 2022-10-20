@@ -4,7 +4,7 @@ from .utils.helper import AttributeNameValidator, IntDelegate, FloatDelegate, Da
     StrDelegate
 from .utils.editable_label import EditableLabel
 
-from typing import Union, Type
+from typing import Union, Type, Optional, Dict, cast
 
 from tscat.filtering import Comparison, Field, Attribute, Any, All, Not, In, InCatalogue, Has, Predicate, Match
 import tscat.filtering
@@ -14,7 +14,7 @@ import datetime as dt
 class _PredicateWidget(QtWidgets.QWidget):
     changed = QtCore.Signal()
 
-    def __init__(self, parent: QtWidgets.QWidget):
+    def __init__(self, parent: Optional[QtWidgets.QWidget]):
         super().__init__(parent)
         if parent:
             self.changed.connect(lambda p=parent: p.changed.emit())
@@ -29,9 +29,6 @@ class _PredicateWidget(QtWidgets.QWidget):
 class _Root(_PredicateWidget):
     def __init__(self, predicate: Predicate):
         super().__init__(None)
-
-        if predicate is None:
-            predicate = Any()  # default and limit to LogicalCombination when creating a new one
 
         self._first = predicate_to_widget_factory(predicate, None)
         if self._first:
@@ -102,7 +99,8 @@ class _Comparison(_PredicateWidget):
 
         if type(predicate) == Comparison:
             if negate:
-                predicate._op = _Comparison.OP_LABELS_NEGATED[_Comparison.OP_LABELS.index(predicate._op)]
+                predicate._op = _Comparison.OP_LABELS_NEGATED[
+                    _Comparison.OP_LABELS.index(predicate._op)]  # type: ignore
 
         self._original_field = predicate._lhs.value
         self._original_value = predicate._rhs
@@ -112,7 +110,7 @@ class _Comparison(_PredicateWidget):
 
         self._field = EditableLabel.LineEdit(self._original_field, AttributeNameValidator())
         completer = QtWidgets.QCompleter(list(_Comparison.event_fixed_keys_types.keys()), parent=self)
-        completer.setCaseSensitivity(QtCore.Qt.CaseSensitive)
+        completer.setCaseSensitivity(QtCore.Qt.CaseSensitive)  # type: ignore
         self._field.setCompleter(completer)
 
         self._field.finished.connect(self._field_editing_finished)
@@ -123,7 +121,7 @@ class _Comparison(_PredicateWidget):
         self._op_label = QtWidgets.QLabel()
         self._op_label.setFont(QtGui.QFont("monospace"))
 
-        if type(predicate) == Match:
+        if isinstance(predicate, Match):
             op_text = '!~' if negate else '=~'
         else:
             op_text = predicate._op
@@ -134,18 +132,18 @@ class _Comparison(_PredicateWidget):
         self._type_cb = QtWidgets.QComboBox()
         for name, _type in _Comparison.possible_types.items():
             self._type_cb.addItem(name, _type)
-        self._type_cb.currentIndexChanged.connect(self._type_index_changed)
+        self._type_cb.currentIndexChanged.connect(self._type_index_changed)  # type: ignore
         self._layout.addWidget(self._type_cb)
 
-        self._current_value_widget = None
-        # used to store widget which have at some point been used (to not lose last values if type is changed)
-        self._value_widgets = {}
+        self._current_value_widget: Optional[_PredicateWidget] = None
+        # used to store widgets which have at some point been used (to not lose last values if type is changed)
+        self._value_widgets: Dict[Type, QtWidgets.QWidget] = {}
         self.setLayout(self._layout)
 
         # initial value of TypeComboBox depends on initial filter-value
         self._select_value_type(type(self._original_value))
         self._type_index_changed(self._type_cb.currentIndex())
-        self._current_value_widget.set_value(self._original_value)
+        self._current_value_widget.set_value(self._original_value)  # type: ignore
 
     def _select_value_type(self, selected_type: Union[Type, None] = None):
         value_type_from_field = _Comparison.event_fixed_keys_types.get(self._field.text(), None)
@@ -172,30 +170,33 @@ class _Comparison(_PredicateWidget):
             self._layout.removeWidget(self._current_value_widget)
             self._current_value_widget.hide()
 
-        widget = self._value_widgets.get(_type, None)
-        if not widget:
+        if _type not in self._value_widgets:
             widget = _Comparison.type_widget[_type]()
-            widget.editingFinished.connect(lambda: self.changed.emit())
+            widget.editingFinished.connect(lambda: self.changed.emit())  # type: ignore
             self._value_widgets[_type] = widget
         else:
-            widget.show()
+            widget = self._value_widgets[_type]
 
         self._current_value_widget = widget
         self._layout.addWidget(widget)
         self.changed.emit()
 
-    def predicate(self) -> Union[Comparison, Match, Not]:
-        if self._field.text() in tscat.Event._fixed_keys:
+    def predicate(self) -> Optional[Union[Comparison, Match, Not]]:
+        if self._current_value_widget is None:
+            return None
+
+        field: Union[Field, Attribute]
+        if self._field.text() in tscat._Event._fixed_keys:
             field = Field(self._field.text())
         else:
             field = Attribute(self._field.text())
 
         if self.operator_index() == _Comparison.OP_MATCH:
-            return Match(field, self._current_value_widget.value())
+            return Match(field, self._current_value_widget.value())  # type: ignore
         elif self.operator_index() == _Comparison.OP_NOT_MATCH:
-            return Not(Match(field, self._current_value_widget.value()))
+            return Not(Match(field, self._current_value_widget.value()))  # type: ignore
         else:
-            return Comparison(self._op_label.text(), field, self._current_value_widget.value())
+            return Comparison(self._op_label.text(), field, self._current_value_widget.value())  # type: ignore
 
     def set_operator(self, op):
         self._op_label.setText(_Comparison.OP_LABELS[op])
@@ -268,7 +269,7 @@ class _StringInStringList(_PredicateWidget):
 
         self.attribute = EditableLabel.LineEdit(predicate._rhs.value if predicate else "", AttributeNameValidator())
         completer = QtWidgets.QCompleter(_StringInStringList.event_fixed_keys, parent=self)
-        completer.setCaseSensitivity(QtCore.Qt.CaseSensitive)
+        completer.setCaseSensitivity(QtCore.Qt.CaseSensitive)  # type: ignore
         self.attribute.setCompleter(completer)
         self.attribute.finished.connect(lambda: self.changed.emit())
 
@@ -277,7 +278,8 @@ class _StringInStringList(_PredicateWidget):
         self.setLayout(c)
 
     def predicate(self) -> Union[In, Not]:
-        attr_or_field_type = Field if self.attribute.text() in _StringInStringList.event_fixed_keys else Attribute
+        attr_or_field_type: Union[Type[Field], Type[
+            Attribute]] = Field if self.attribute.text() in _StringInStringList.event_fixed_keys else Attribute
         predicate = In(self.le.text(), attr_or_field_type(self.attribute.text()))
         if self.operator_index() == _StringInStringList.OP_NOT_IN:
             return Not(predicate)
@@ -312,13 +314,13 @@ class _InCatalogue(_PredicateWidget):
 
         for cat in tscat.get_catalogues(removed_items=True):
             self.catalogues.addItem(cat.name + " (in trash)", cat)
-        self.catalogues.currentIndexChanged.connect(lambda: self.changed.emit())
+        self.catalogues.currentIndexChanged.connect(lambda: self.changed.emit())  # type: ignore
 
         c.addWidget(self.catalogues)
 
         self.setLayout(c)
 
-    def predicate(self) -> Union[In, Not]:
+    def predicate(self) -> Union[InCatalogue, Not]:
         predicate = InCatalogue(self.catalogues.itemData(self.catalogues.currentIndex()))
         if self.operator_index() == _InCatalogue.OP_NOT_IN:
             return Not(predicate)
@@ -350,7 +352,8 @@ operators = [
 
 
 class _Condition(_PredicateWidget):
-    def __init__(self, predicate: Union[Comparison, Match, In, Has, InCatalogue, None], parent: _PredicateWidget):
+    def __init__(self, predicate: Union[Comparison, Match, In, Has, InCatalogue, None],
+                 parent: Optional[_PredicateWidget]):
         super().__init__(parent)
 
         self._hlayout = QtWidgets.QHBoxLayout()
@@ -358,33 +361,35 @@ class _Condition(_PredicateWidget):
 
         self._cb = QtWidgets.QComboBox()
         for op in operators:
-            self._cb.addItem(op[0], op)
-        self._cb.currentIndexChanged.connect(self._condition_operator_changed)
+            self._cb.addItem(str(op[0]), op)
+        self._cb.currentIndexChanged.connect(self._condition_operator_changed)  # type: ignore
 
         self._hlayout.addWidget(self._cb)
 
         negate = False
-        while type(predicate) == Not:
+        while isinstance(predicate, Not):
             negate = not negate
             predicate = predicate._operand
 
-        self.condition = None
+        self.condition: Union[_Comparison, _AttributeIsPresent, _StringInStringList, _InCatalogue]
 
-        if type(predicate) in [Comparison, Match] or predicate is None:
+        if isinstance(predicate, Comparison) or isinstance(predicate, Match) or predicate is None:
             self.condition = _Comparison(predicate, negate, self)
-        elif type(predicate) == Has:
+        elif isinstance(predicate, Has):
             self.condition = _AttributeIsPresent(predicate, negate, self)
-        elif type(predicate) == In:
+        elif isinstance(predicate, In):
             self.condition = _StringInStringList(predicate, negate, self)
-        elif type(predicate) == InCatalogue:
+        elif isinstance(predicate, InCatalogue):
             self.condition = _InCatalogue(predicate, negate, self)
+        else:
+            raise ValueError('Unknown predicate type')
 
         self.condition.changed.connect(lambda: self.changed.emit())
 
         self.conditions_seen = {type(self.condition): self.condition}
 
         for index, op in enumerate(operators):
-            if isinstance(self.condition, op[1]) and op[2] == self.condition.operator_index():
+            if isinstance(self.condition, cast(Type, op[1])) and op[2] == self.condition.operator_index():
                 self._cb.setCurrentIndex(index)
                 break
 
@@ -426,7 +431,7 @@ class _Condition(_PredicateWidget):
 
 
 class _LogicalCombination(_PredicateWidget):
-    def __init__(self, predicate: Union[All, Any, None], parent: _PredicateWidget):
+    def __init__(self, predicate: Union[All, Any, None], parent: Optional[_PredicateWidget]):
         super().__init__(parent)
 
         if predicate is None:
@@ -453,7 +458,7 @@ class _LogicalCombination(_PredicateWidget):
         sub_layout.addStretch()
         sub_layout.addWidget(_DeletePredicateWidget(self))
 
-        button_group.buttonClicked.connect(lambda x: self.changed.emit())
+        button_group.buttonClicked.connect(lambda x: self.changed.emit())  # type: ignore
 
         if isinstance(predicate, Any):
             self._any.setChecked(True)
@@ -474,7 +479,7 @@ class _LogicalCombination(_PredicateWidget):
         self.setLayout(self._layout)
 
     def new(self, cls: Type[_PredicateWidget]):
-        t = cls(None, self)
+        t = cls(predicate=None, parent=self)
         self._layout.insertWidget(self._layout.count() - 1, t)
         self.add_child_predicate(t)
         self.changed.emit()
@@ -502,13 +507,15 @@ class _LogicalCombination(_PredicateWidget):
         self.changed.emit()
 
 
-def predicate_to_widget_factory(predicate: Predicate, parent: _PredicateWidget):
-    if type(predicate) in [Any, All]:
-        cls = _LogicalCombination
-    else:
-        cls = _Condition
+def predicate_to_widget_factory(predicate: Predicate, parent: Optional[_PredicateWidget]) -> \
+    Union[_LogicalCombination, _Condition]:
+    if isinstance(predicate, Any) or isinstance(predicate, All):
+        return _LogicalCombination(predicate, parent)
+    elif isinstance(predicate, Comparison) or isinstance(predicate, Match) or \
+        isinstance(predicate, In) or isinstance(predicate, Has) or isinstance(predicate, InCatalogue):
+        return _Condition(predicate, parent)
 
-    return cls(predicate, parent)
+    raise ValueError('Unknown predicate type for factory')
 
 
 class _AddPredicateWidget(QtWidgets.QWidget):
@@ -528,7 +535,7 @@ class _AddPredicateWidget(QtWidgets.QWidget):
 
         button = QtWidgets.QToolButton()
         button.setText('Add')
-        button.clicked.connect(lambda: self.new.emit(self))
+        button.clicked.connect(lambda: self.new.emit(self))  # type: ignore
         l.addWidget(button)
 
         l.addStretch()
@@ -545,16 +552,19 @@ class _DeletePredicateWidget(QtWidgets.QToolButton):
 
         self.setText('✖')
 
-        self.clicked.connect(lambda: widget.parent().delete_child(widget))
+        self.clicked.connect(lambda: cast(widget.parent(), QtWidgets.QWidget).delete_child(widget))  # type: ignore
 
 
 class SimplePredicateEditDialog(QtWidgets.QDialog):
-    def __init__(self, predicate: Union[tscat.Predicate, None], parent=None):
+    def __init__(self, predicate: Optional[tscat.Predicate], parent=None):
         super().__init__(parent)
 
         layout = QtWidgets.QVBoxLayout()
 
         self.predicate = predicate
+
+        if predicate is None:
+            predicate = Any()  # default and limit to LogicalCombination when creating a new one
 
         self._root = _Root(predicate)
 
@@ -566,10 +576,10 @@ class SimplePredicateEditDialog(QtWidgets.QDialog):
         layout.addWidget(self._root)
 
         ok = QtWidgets.QPushButton("OK")
-        ok.clicked.connect(lambda: self.accept())
+        ok.clicked.connect(lambda: self.accept())  # type: ignore
 
         cancel = QtWidgets.QPushButton("Cancel")
-        cancel.clicked.connect(lambda: self.reject())
+        cancel.clicked.connect(lambda: self.reject())  # type: ignore
 
         last_line_layout = QtWidgets.QHBoxLayout()
         last_line_layout.addStretch()

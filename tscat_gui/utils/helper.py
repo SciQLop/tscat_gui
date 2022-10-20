@@ -1,7 +1,7 @@
 from PySide6 import QtGui, QtWidgets, QtCore
 
 import re
-from typing import Union
+from typing import Union, cast
 import datetime as dt
 
 import tscat
@@ -10,7 +10,7 @@ import tscat
 # this function should go to tscat - this is a kludge to work-around missing functions or wrong concepts
 # get an entity from a UUID (catalogue or event)
 # get an entity from a UUID independently whether it is removed (in trash) or not
-def get_entity_from_uuid_safe(uuid: str) -> Union[tscat.Catalogue, tscat.Event]:
+def get_entity_from_uuid_safe(uuid: str) -> Union[tscat._Catalogue, tscat._Event]:
     catalogues = tscat.get_catalogues(tscat.filtering.UUID(uuid))
     if len(catalogues) == 1:
         return catalogues[0]
@@ -27,7 +27,7 @@ def get_entity_from_uuid_safe(uuid: str) -> Union[tscat.Catalogue, tscat.Event]:
                 if len(events) == 1:
                     return events[0]
 
-    raise ValueError("No entity (catalogue or event) found for this UUID")
+    raise ValueError(f"No entity (catalogue or event) found for this UUID {uuid}")
 
 
 _valid_attribute_name_re = re.compile(r'^[A-Za-z][A-Za-z_0-9]*$')
@@ -40,15 +40,15 @@ class AttributeNameValidator(QtGui.QValidator):
 
     def validate(self, word: str, pos: int) -> QtGui.QValidator.State:
         if len(word) == 0:
-            return QtGui.QValidator.Intermediate
+            return QtGui.QValidator.Intermediate  # type: ignore
 
         if word in self.invalid_words:
-            return QtGui.QValidator.Intermediate
+            return QtGui.QValidator.Intermediate  # type: ignore
 
         if not _valid_attribute_name_re.match(word):
-            return QtGui.QValidator.Intermediate
+            return QtGui.QValidator.Intermediate  # type: ignore
 
-        return QtGui.QValidator.Acceptable
+        return QtGui.QValidator.Acceptable  # type: ignore
 
 
 class IntDelegate(QtWidgets.QSpinBox):
@@ -88,7 +88,7 @@ class BoolDelegate(QtWidgets.QCheckBox):
     def __init__(self, value: Union[bool, None] = None, parent: QtWidgets.QWidget = None):
         super().__init__(parent)
         self.setChecked(False if value is None else value)
-        self.stateChanged.connect(lambda: self.editingFinished.emit())
+        self.stateChanged.connect(lambda: self.editingFinished.emit())  # type: ignore
 
     def value(self) -> bool:
         return self.isChecked()
@@ -109,11 +109,11 @@ class StrDelegate(QtWidgets.QLineEdit):
 
 
 class DateTimeDelegate(QtWidgets.QDateTimeEdit):
-    def __init__(self, value: Union[str, None] = None, parent: QtWidgets.QWidget = None):
-        super().__init__(dt.datetime.now() if value is None else value, parent)
+    def __init__(self, value: Union[dt.datetime, None] = None, parent: QtWidgets.QWidget = None):
+        super().__init__(dt.datetime.now() if value is None else value, parent)  # type: ignore
 
     def value(self) -> dt.datetime:
-        return self.dateTime().toPython()
+        return cast(dt.datetime, self.dateTime().toPython())
 
     def set_value(self, value: dt.datetime):
-        self.setDateTime(value)
+        self.setDateTime(value)  # type: ignore

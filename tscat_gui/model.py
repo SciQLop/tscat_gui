@@ -1,21 +1,23 @@
+import abc
+
 from PySide6 import QtCore
 
 import tscat
-from typing import Any
+from typing import Any, List, Optional, cast, Union
 
 from .utils.helper import get_entity_from_uuid_safe
 from .state import AppState
 
-UUIDRole = QtCore.Qt.UserRole + 1
+UUIDRole = QtCore.Qt.UserRole + 1  # type: ignore
 
 
 class _Item:
-    def __init__(self, parent, items: list = []):
+    def __init__(self, parent, items: Optional[List]):
         self._parent = parent
-        self._items = items
+        self._items = items if items else []
 
     def flags(self):
-        return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable
+        return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable  # type: ignore
 
     def child(self, row: int):
         return self._items[row]
@@ -31,6 +33,10 @@ class _Item:
 
     def parent(self):
         return self._parent
+
+    @abc.abstractmethod
+    def text(self) -> str:
+        pass
 
 
 class _AllEvents(_Item):
@@ -51,7 +57,7 @@ class _Separator(_Item):
 
 class _Catalogue(_Item):
     def __init__(self, parent, uuid: str):
-        super().__init__(parent)
+        super().__init__(parent, [])
 
         self._uuid = uuid
 
@@ -101,11 +107,11 @@ class _Root(_Item):
     def trash_node(self):
         return self._items[-1]
 
-    def item_from_uuid(self, uuid: str):
-        for item in self.items + self.items[-1].items:
-            if type(item) is _Catalogue and item.uuid() == uuid:
-                return item
-        return None
+    # def item_from_uuid(self, uuid: str):
+    #     for item in self.items + self.items[-1].items:
+    #         if type(item) is _Catalogue and item.uuid() == uuid:
+    #             return item
+    #     return None
 
 
 class CatalogueModel(QtCore.QAbstractItemModel):
@@ -119,7 +125,7 @@ class CatalogueModel(QtCore.QAbstractItemModel):
         self._root = _Root()
         self.endResetModel()
 
-    def index(self, row, column, parent):
+    def index(self, row, column, parent):  # type: ignore
         if not self.hasIndex(row, column, parent):
             return QtCore.QModelIndex()
 
@@ -131,47 +137,48 @@ class CatalogueModel(QtCore.QAbstractItemModel):
         child = item.child(row)
         return self.createIndex(row, column, child)
 
-    def parent(self, index: QtCore.QModelIndex) -> QtCore.QModelIndex:
+    def parent(self, index: QtCore.QModelIndex) -> QtCore.QModelIndex:  # type: ignore
         if not index.isValid():
             return QtCore.QModelIndex()
 
-        item: _Item = index.internalPointer()
-        parent: _Item = item.parent()
+        item = cast(_Item, index.internalPointer())
+        parent = item.parent()
         if parent == self._root:
             return QtCore.QModelIndex()
 
         return self.createIndex(parent.row(), 0, parent)
 
-    def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
+    def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:  # type: ignore
         return 1
 
-    def rowCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
+    def rowCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:  # type: ignore
         if not parent.isValid():  # root
             return self._root.child_count()
         else:
-            return parent.internalPointer().child_count()
+            return cast(_Item, parent.internalPointer()).child_count()
 
-    def flags(self, index: QtCore.QModelIndex) -> QtCore.Qt.ItemFlags:
+    def flags(self, index: QtCore.QModelIndex) -> QtCore.Qt.ItemFlags:  # type: ignore
         if index.isValid():
-            return index.internalPointer().flags()
-        return QtCore.Qt.NoItemFlags
+            return cast(_Item, index.internalPointer()).flags()
+        return QtCore.Qt.NoItemFlags  # type: ignore
 
-    def data(self, index: QtCore.QModelIndex, role: int = QtCore.Qt.DisplayRole) -> Any:
+    def data(self, index: QtCore.QModelIndex, role: int = QtCore.Qt.DisplayRole) -> Any:  # type: ignore
         if index.isValid():
-            item = index.internalPointer()
+            item = cast(_Item, index.internalPointer())
         else:
             item = self._root
 
-        if role == QtCore.Qt.DisplayRole:
+        if role == QtCore.Qt.DisplayRole:  # type: ignore
             return item.text()
         elif role == UUIDRole:
-            if type(index.internalPointer()) == _Catalogue:
-                return index.internalPointer().uuid()
+            if isinstance(index.internalPointer(), _Catalogue):
+                return cast(_Catalogue, index.internalPointer()).uuid()
 
         return None
 
-    def headerData(self, section: int, orientation: QtCore.Qt.Orientation, role: int = QtCore.Qt.DisplayRole) -> Any:
-        if role == QtCore.Qt.DisplayRole:
+    def headerData(self, section: int, orientation: QtCore.Qt.Orientation,
+                   role: int = QtCore.Qt.DisplayRole) -> Any:  # type: ignore
+        if role == QtCore.Qt.DisplayRole:  # type: ignore
             return "Catalogues"
         return None
 
@@ -194,27 +201,28 @@ class EventModel(QtCore.QAbstractTableModel):
         super().__init__(parent)
 
         self.catalogue_uuid = None
-        self.events = []
+        self.events: List[tscat._Event] = []
 
         state.state_changed.connect(self.set_catalogue)
 
-    def headerData(self, section: int, orientation: QtCore.Qt.Orientation, role: int = QtCore.Qt.DisplayRole) -> Any:
+    def headerData(self, section: int, orientation: QtCore.Qt.Orientation,
+                   role: int = QtCore.Qt.DisplayRole) -> Any:  # type: ignore
         if orientation == QtCore.Qt.Orientation.Horizontal:
-            if role == QtCore.Qt.DisplayRole:
+            if role == QtCore.Qt.DisplayRole:  # type: ignore
                 if section < len(self._columns):
                     return self._columns[section].title()
                 else:
                     return "Attributes"
         return None
 
-    def columnCount(self, parent: QtCore.QModelIndex) -> int:
+    def columnCount(self, parent: Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex] = None) -> int:
         return len(self._columns) + 1
 
-    def rowCount(self, parent: QtCore.QModelIndex) -> int:
+    def rowCount(self, parent: Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex] = None) -> int:
         return len(self.events)
 
-    def data(self, index: QtCore.QModelIndex, role: int):
-        if role == QtCore.Qt.DisplayRole:
+    def data(self, index: Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex], role: int = QtCore.Qt.DisplayRole):  # type: ignore
+        if role == QtCore.Qt.DisplayRole:  # type: ignore
             if index.column() < len(self._columns):
                 key = self._columns[index.column()]
                 return str(self.events[index.row()].__dict__[key])
@@ -235,7 +243,7 @@ class EventModel(QtCore.QAbstractTableModel):
         self.endResetModel()
 
     def set_catalogue(self, command, type, uuid):
-        if command in ['active_select', 'passive_select'] and type == tscat.Catalogue:
+        if command in ['active_select', 'passive_select'] and type == tscat._Catalogue:
             self.catalogue_uuid = uuid
             self.reset()
 

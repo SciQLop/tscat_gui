@@ -4,6 +4,7 @@ from .editable_label import EditableLabel
 from PySide6 import QtWidgets, QtCore, QtGui
 
 import re
+import typing
 
 # UTF-8 letters in the beginning, then also numbers and underscore
 _tag_validation_regex = re.compile(r'[a-z]\w*')
@@ -29,7 +30,7 @@ class _Keyword(EditableLabel):
 
         def enterEvent(self, event: QtCore.QEvent) -> None:
             self.setText('✖')
-            super().enterEvent(event)
+            super().enterEvent(event)  # type: ignore
 
         def leaveEvent(self, event: QtCore.QEvent) -> None:
             self.setText('✕')
@@ -47,14 +48,14 @@ class _Keyword(EditableLabel):
 
         def validate(self, word: str, pos: int) -> QtGui.QValidator.State:
             if len(word) == 0:
-                return QtGui.QValidator.Intermediate
+                return QtGui.QValidator.Intermediate  # type: ignore
 
             if not _tag_validation_regex.match(word):
-                return QtGui.QValidator.Intermediate
+                return QtGui.QValidator.Intermediate  # type: ignore
 
-            return QtGui.QValidator.Acceptable
+            return QtGui.QValidator.Acceptable  # type: ignore
 
-    def __init__(self, text: str, parent):
+    def __init__(self, text: str, parent: 'EditableKeywordListWidget'):
         super().__init__(text, _Keyword.Validator(), parent)
 
         self.list_widget = parent
@@ -62,8 +63,8 @@ class _Keyword(EditableLabel):
         self.delete_label = _Keyword.DeleteLabel()
         self.delete_label.clicked.connect(lambda: self.closed.emit(self))
 
-        self.layout.addWidget(self.delete_label)
-        self.layout.setContentsMargins(5, 5, 5, 5)
+        self._layout.addWidget(self.delete_label)
+        self._layout.setContentsMargins(5, 5, 5, 5)
 
         self.setObjectName('OneKeyword')
         self.setStyleSheet(f"""#OneKeyword {{
@@ -86,20 +87,20 @@ class EditableKeywordListWidget(QtWidgets.QWidget):
     def __init__(self, strings: list[str], completion_strings: list[str] = [], parent=None):
         super().__init__(parent)
 
-        self.layout = FlowLayout()
+        self._layout = FlowLayout()
 
         self.new_tag = QtWidgets.QToolButton()
         self.new_tag.setText('➕')
-        self.new_tag.clicked.connect(lambda _: self._add_tag('', edit=True))
-        self.layout.addWidget(self.new_tag)
+        self.new_tag.clicked.connect(lambda _: self._add_tag('', edit=True))  # type: ignore
+        self._layout.addWidget(self.new_tag)
 
-        self.tags = []
+        self.tags: typing.List[_Keyword] = []
         for text in strings:
             self._add_tag(text)
 
         self.completion_strings = set(completion_strings + strings)
 
-        self.setLayout(self.layout)
+        self.setLayout(self._layout)
 
     def _add_tag(self, text: str, edit=False):
         tag = _Keyword(text, self)
@@ -108,9 +109,9 @@ class EditableKeywordListWidget(QtWidgets.QWidget):
         tag.closed.connect(self._delete_tag)
 
         # insert before the new_tag-button
-        self.layout.removeWidget(self.new_tag)
-        self.layout.addWidget(tag)
-        self.layout.addWidget(self.new_tag)
+        self._layout.removeWidget(self.new_tag)
+        self._layout.addWidget(tag)
+        self._layout.addWidget(self.new_tag)
 
         if edit:
             self._request_edit(tag)
@@ -132,7 +133,7 @@ class EditableKeywordListWidget(QtWidgets.QWidget):
 
     def _delete_tag(self, tag: _Keyword):
         self.tags.remove(tag)
-        self.layout.removeWidget(tag)
+        self._layout.removeWidget(tag)
         tag.deleteLater()
 
         self._update_tag_texts()

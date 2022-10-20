@@ -3,7 +3,7 @@ from PySide6 import QtCore
 
 import tscat
 
-from typing import Union
+from typing import Union, Type
 import dataclasses
 
 from .logger import log
@@ -12,7 +12,7 @@ from .logger import log
 @dataclasses.dataclass
 class SelectState:
     active: str
-    type: Union[tscat.Catalogue, tscat.Event]
+    type: Union[Type[tscat._Catalogue], Type[tscat._Event]]
     active_catalogue: str
 
 
@@ -24,7 +24,7 @@ class AppState(QtCore.QObject):
     def __init__(self):
         super().__init__()
         self.active: str = None
-        self.active_type: Union[tscat.Catalogue, tscat.Event] = tscat.Catalogue
+        self.active_type = tscat._Catalogue
         self.active_catalogue: str = None
 
         self._undo_stack = QtGui.QUndoStack()
@@ -42,13 +42,13 @@ class AppState(QtCore.QObject):
     def select_state(self) -> SelectState:
         return SelectState(self.active, self.active_type, self.active_catalogue)
 
-    def updated(self, action: str, type: Union[tscat.Catalogue, tscat.Event], uuid: str) -> None:
+    def updated(self, action: str, type: Union[Type[tscat._Catalogue], Type[tscat._Event]], uuid: str) -> None:
         if action == 'active_select':
             if uuid != self.active:
                 self.active = uuid
                 self.active_type = type
 
-                if self.active_type == tscat.Catalogue:
+                if self.active_type == tscat._Catalogue:
                     self.active_catalogue = uuid
             else:
                 log.debug(f'already active "{uuid}"')

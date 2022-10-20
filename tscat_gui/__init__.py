@@ -28,7 +28,8 @@ class _TrashAlwaysTopOrBottomSortFilterModel(QtCore.QSortFilterProxyModel):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-    def lessThan(self, source_left: QtCore.QModelIndex, source_right: QtCore.QModelIndex) -> bool:
+    def lessThan(self, source_left: Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex],
+                 source_right: Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex]) -> bool:
         left = self.sourceModel().data(source_left)
         right = self.sourceModel().data(source_right)
 
@@ -74,9 +75,9 @@ class TSCatGUI(QtWidgets.QWidget):
             if selected.isValid():
                 if not deselected.isValid() or deselected.row() != selected.row():
                     uuid = self.events_sort_model.data(selected, UUIDRole)
-                    self.state.updated('active_select', tscat.Event, uuid)
+                    self.state.updated('active_select', tscat._Event, uuid)
             else:
-                self.state.updated('active_select', tscat.Event, None)
+                self.state.updated('active_select', tscat._Event, None)
 
         self.events_view.selectionModel().currentChanged.connect(current_event_changed,
                                                                  type=QtCore.Qt.DirectConnection)
@@ -110,9 +111,9 @@ class TSCatGUI(QtWidgets.QWidget):
 
             if selected.isValid():
                 uuid = self.catalogue_sort_filter_model.data(selected, UUIDRole)
-                self.state.updated('active_select', tscat.Catalogue, uuid)
+                self.state.updated('active_select', tscat._Catalogue, uuid)
             else:
-                self.state.updated('active_select', tscat.Catalogue, None)
+                self.state.updated('active_select', tscat._Catalogue, None)
 
         self.catalogues_view.selectionModel().currentChanged.connect(current_catalogue_changed,
                                                                      type=QtCore.Qt.DirectConnection)
@@ -121,7 +122,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
         def state_changed(action, type, uuid):
             if action in ['changed', 'moved', 'inserted', 'deleted', 'active_select', 'passive_select']:
-                if type == tscat.Catalogue:
+                if type == tscat._Catalogue:
                     if action not in ['active_select', 'passive_select']:
                         self.catalogue_model.reset()
 
@@ -217,11 +218,11 @@ class TSCatGUI(QtWidgets.QWidget):
         undo_action, redo_action = self.state.create_undo_redo_action()
 
         undo_action.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowBack))
-        undo_action.setShortcut(QtCore.Qt.CTRL + QtCore.Qt.Key_Z)
+        undo_action.setShortcut(QtCore.Qt.CTRL | QtCore.Qt.Key_Z)
         toolbar.addAction(undo_action)
 
         redo_action.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowForward))
-        redo_action.setShortcut(QtCore.Qt.CTRL + QtCore.Qt.SHIFT + QtCore.Qt.Key_Z)
+        redo_action.setShortcut(QtCore.Qt.CTRL | QtCore.Qt.SHIFT | QtCore.Qt.Key_Z)
         toolbar.addAction(redo_action)
 
         toolbar.addSeparator()
@@ -268,8 +269,8 @@ class TSCatGUI(QtWidgets.QWidget):
             self.catalogue_model.reset()
             self.events_model.reset()
 
-            if current_selection.type == tscat.Event:
-                self.state.updated('passive_select', tscat.Catalogue, current_selection.active_catalogue)
+            if current_selection.type == tscat._Event:
+                self.state.updated('passive_select', tscat._Catalogue, current_selection.active_catalogue)
             self.state.updated('active_select', current_selection.type, current_selection.active)
 
         action.triggered.connect(refresh)
@@ -342,15 +343,15 @@ class TSCatGUI(QtWidgets.QWidget):
         layout.addWidget(splitter)
         self.setLayout(layout)
 
-    def _external_signal_emission(self, action: str, type: Union[tscat.Catalogue, tscat.Event], uuid: str):
+    def _external_signal_emission(self, action: str, type: Union[tscat._Catalogue, tscat._Event], uuid: str):
         if action == "active_select":
-            if type == tscat.Catalogue:
+            if type == tscat._Catalogue:
                 self.catalogue_selected.emit(uuid)
             else:
                 self.event_selected.emit(uuid)
 
         elif action == 'changed':
-            if type == tscat.Catalogue:
+            if type == tscat._Catalogue:
                 self.catalogue_changed.emit(uuid)
             else:
                 self.event_changed.emit(uuid)
@@ -359,14 +360,14 @@ class TSCatGUI(QtWidgets.QWidget):
         event = get_entity_from_uuid_safe(uuid)
         event.start = start
         event.stop = stop
-        self.state.updated('changed', tscat.Event, uuid)
+        self.state.updated('changed', tscat._Event, uuid)
 
-    def create_event(self, start: dt.datetime, stop: dt.datetime, author: str, catalogue_uuid: str) -> tscat.Event:
-        event = tscat.Event(start, stop, author)
+    def create_event(self, start: dt.datetime, stop: dt.datetime, author: str, catalogue_uuid: str) -> tscat._Event:
+        event = tscat._Event(start, stop, author)
         catalogue = get_entity_from_uuid_safe(catalogue_uuid)
         catalogue.add_events(event)
 
-        self.state.updated('inserted', tscat.Event, event.uuid)
+        self.state.updated('inserted', tscat._Event, event.uuid)
 
         return event
 
