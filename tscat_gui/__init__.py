@@ -105,18 +105,17 @@ class TSCatGUI(QtWidgets.QWidget):
 
         self.catalogues_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
-        def current_catalogue_changed(selected: QtCore.QModelIndex, deselected: QtCore.QModelIndex):
+        def current_catalogue_activated(index: QtCore.QModelIndex) -> None:
             if self.programmatic_select:
                 return
 
-            if selected.isValid():
-                uuid = self.catalogue_sort_filter_model.data(selected, UUIDRole)
+            if index.isValid():
+                uuid = self.catalogue_sort_filter_model.data(index, UUIDRole)
                 self.state.updated('active_select', tscat._Catalogue, uuid)
             else:
                 self.state.updated('active_select', tscat._Catalogue, None)
 
-        self.catalogues_view.selectionModel().currentChanged.connect(current_catalogue_changed,
-                                                                     type=QtCore.Qt.DirectConnection)
+        self.catalogues_view.activated.connect(current_catalogue_activated)
 
         self.catalogues_view.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
 
@@ -185,7 +184,7 @@ class TSCatGUI(QtWidgets.QWidget):
         toolbar = QtWidgets.QToolBar()
 
         action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder),
-                                   "Create Catalogue", self)
+                               "Create Catalogue", self)
 
         def new_catalogue():
             self.state.push_undo_command(NewCatalogue)
@@ -194,7 +193,7 @@ class TSCatGUI(QtWidgets.QWidget):
         toolbar.addAction(action)
 
         action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_FileIcon),
-                                   "Create Event", self)
+                               "Create Event", self)
 
         def new_event():
             self.state.push_undo_command(NewEvent)
@@ -207,7 +206,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
         toolbar.addSeparator()
         action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton), "Save To Disk",
-                                   self)
+                               self)
 
         action.triggered.connect(self.save)
         toolbar.addAction(action)
@@ -238,7 +237,7 @@ class TSCatGUI(QtWidgets.QWidget):
         self.move_to_trash_action = action
 
         action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogResetButton),
-                                   "Restore from Trash", self)
+                               "Restore from Trash", self)
 
         def restore():
             self.state.push_undo_command(RestoreEntityFromTrash)
@@ -249,7 +248,7 @@ class TSCatGUI(QtWidgets.QWidget):
         self.restore_from_trash_action = action
 
         action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_BrowserStop), "Delete permanently",
-                                   self)
+                               self)
 
         def delete():
             self.state.push_undo_command(DeletePermanently)
@@ -262,7 +261,7 @@ class TSCatGUI(QtWidgets.QWidget):
         toolbar.addSeparator()
 
         action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogRetryButton), "Refresh",
-                                   self)
+                               self)
 
         def refresh():
             current_selection = self.state.select_state()
@@ -281,7 +280,7 @@ class TSCatGUI(QtWidgets.QWidget):
         toolbar.addSeparator()
 
         action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowUp), "Import Catalogue",
-                                   self)
+                               self)
 
         def import_from_file():
             filename, filetype = QtWidgets.QFileDialog.getOpenFileName(
@@ -306,7 +305,7 @@ class TSCatGUI(QtWidgets.QWidget):
         toolbar.addAction(action)
 
         action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowDown), "Export Catalogue",
-                                   self)
+                               self)
 
         def export_to_file():
             filename, filetype = QtWidgets.QFileDialog.getSaveFileName(
