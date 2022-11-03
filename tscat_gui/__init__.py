@@ -180,7 +180,7 @@ class TSCatGUI(QtWidgets.QWidget):
         hlayout.setContentsMargins(0, 0, 0, 0)
         hlayout.addWidget(QtWidgets.QLabel('Filter:'))
         catalogue_filter = QtWidgets.QLineEdit()
-        catalogue_filter.textChanged.connect(lambda t: self.catalogue_sort_filter_model.setFilterRegExp(t))
+        catalogue_filter.textChanged.connect(lambda t: self.catalogue_sort_filter_model.setFilterRegularExpression(t))
 
         hlayout.addWidget(catalogue_filter)
 
