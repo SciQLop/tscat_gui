@@ -106,6 +106,8 @@ class TSCatGUI(QtWidgets.QWidget):
         self.catalogues_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
         def current_catalogue_changed(selected: QtCore.QModelIndex, deselected: QtCore.QModelIndex):
+
+            print('current cat changed')
             if self.programmatic_select:
                 return
 
@@ -115,8 +117,23 @@ class TSCatGUI(QtWidgets.QWidget):
             else:
                 self.state.updated('active_select', tscat._Catalogue, None)
 
-        self.catalogues_view.selectionModel().currentChanged.connect(current_catalogue_changed,
-                                                                     type=QtCore.Qt.DirectConnection)
+
+        def current_catalogue_activated(index: QtCore.QModelIndex) -> None:
+            print('current cat changed')
+            if self.programmatic_select:
+                return
+
+            if index.isValid():
+                uuid = self.catalogue_sort_filter_model.data(index, UUIDRole)
+                self.state.updated('active_select', tscat._Catalogue, uuid)
+            else:
+                self.state.updated('active_select', tscat._Catalogue, None)
+
+
+
+        #self.catalogues_view.selectionModel().currentChanged.connect(current_catalogue_changed,
+        #                                                             type=QtCore.Qt.DirectConnection)
+        self.catalogues_view.activated.connect(current_catalogue_activated)
 
         self.catalogues_view.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
 
@@ -295,8 +312,11 @@ class TSCatGUI(QtWidgets.QWidget):
             try:
                 with open(filename) as f:
                     data = f.read()
+                    print('canonicalizing')
                     import_dict = tscat.canonicalize_json_import(data)
+                    print('done')
                     self.state.push_undo_command(Import, filename, import_dict)
+                    print('done 2')
             except Exception as e:
                 QtWidgets.QMessageBox.critical(self.activateWindow(),
                                                "Catalogue import",

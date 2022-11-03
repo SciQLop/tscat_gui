@@ -11,18 +11,22 @@ import tscat
 # get an entity from a UUID (catalogue or event)
 # get an entity from a UUID independently whether it is removed (in trash) or not
 def get_entity_from_uuid_safe(uuid: str) -> Union[tscat._Catalogue, tscat._Event]:
+
     catalogues = tscat.get_catalogues(tscat.filtering.UUID(uuid))
     if len(catalogues) == 1:
         return catalogues[0]
-    elif len(catalogues) == 0:
+
+    if len(catalogues) == 0:
         catalogues = tscat.get_catalogues(tscat.filtering.UUID(uuid), removed_items=True)
         if len(catalogues) == 1:
             return catalogues[0]
+
         elif len(catalogues) == 0:
             events = tscat.get_events(tscat.filtering.UUID(uuid))
             if len(events) == 1:
                 return events[0]
-            elif len(events) == 0:
+
+            if len(events) == 0:
                 events = tscat.get_events(tscat.filtering.UUID(uuid), removed_items=True)
                 if len(events) == 1:
                     return events[0]
