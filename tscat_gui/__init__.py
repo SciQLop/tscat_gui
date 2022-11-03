@@ -363,9 +363,10 @@ class TSCatGUI(QtWidgets.QWidget):
         self.state.updated('changed', tscat._Event, uuid)
 
     def create_event(self, start: dt.datetime, stop: dt.datetime, author: str, catalogue_uuid: str) -> tscat._Event:
-        event = tscat._Event(start, stop, author)
         catalogue = get_entity_from_uuid_safe(catalogue_uuid)
-        catalogue.add_events(event)
+        with tscat.Session() as s:
+            event = s.create_event(start, stop, author)
+            tscat.add_events_to_catalogue(catalogue, event)
 
         self.state.updated('inserted', tscat._Event, event.uuid)
 
