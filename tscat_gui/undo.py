@@ -285,11 +285,12 @@ class DeletePermanently(_EntityBased):
             entity.remove()
 
         linked_entities = [get_entity_from_uuid_safe(uuid) for uuid in self.linked_uuids]
-        if type(entity) == tscat._Catalogue:
-            entity.add_events(linked_entities)
+        if isinstance(entity, tscat._Catalogue):
+            tscat.add_events_to_catalogue(entity, linked_entities)
         else:
-            for e in linked_entities:
-                e.add_events(entity)
+            for c in linked_entities:
+                assert isinstance(c, tscat._Catalogue)
+                tscat.add_events_to_catalogue(c, entity)
 
         self.state.updated("inserted", type(entity), entity.uuid)
         self._select(entity.uuid)
