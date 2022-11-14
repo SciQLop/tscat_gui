@@ -115,7 +115,13 @@ class TSCatGUI(QtWidgets.QWidget):
             else:
                 self.state.updated('active_select', tscat._Catalogue, None)
 
-        self.catalogues_view.activated.connect(current_catalogue_activated)
+        def current_catalogue_changed(selected: QtCore.QModelIndex, deselected: QtCore.QModelIndex):
+            current_catalogue_activated(selected)
+
+
+        self.catalogues_view.selectionModel().currentChanged.connect(current_catalogue_changed,
+                                                                     type=QtCore.Qt.DirectConnection)
+        self.catalogues_view.clicked.connect(current_catalogue_activated)
 
         self.catalogues_view.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
 
