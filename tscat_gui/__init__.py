@@ -105,18 +105,6 @@ class TSCatGUI(QtWidgets.QWidget):
 
         self.catalogues_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
-        def current_catalogue_changed(selected: QtCore.QModelIndex, deselected: QtCore.QModelIndex):
-
-            print('current cat changed')
-            if self.programmatic_select:
-                return
-
-            if selected.isValid():
-                uuid = self.catalogue_sort_filter_model.data(selected, UUIDRole)
-                self.state.updated('active_select', tscat._Catalogue, uuid)
-            else:
-                self.state.updated('active_select', tscat._Catalogue, None)
-
 
         def current_catalogue_activated(index: QtCore.QModelIndex) -> None:
             print('current cat changed')
@@ -130,10 +118,13 @@ class TSCatGUI(QtWidgets.QWidget):
                 self.state.updated('active_select', tscat._Catalogue, None)
 
 
+        def current_catalogue_changed(selected: QtCore.QModelIndex, deselected: QtCore.QModelIndex):
+            current_catalogue_activated(selected)
 
-        #self.catalogues_view.selectionModel().currentChanged.connect(current_catalogue_changed,
-        #                                                             type=QtCore.Qt.DirectConnection)
-        self.catalogues_view.activated.connect(current_catalogue_activated)
+
+        self.catalogues_view.selectionModel().currentChanged.connect(current_catalogue_changed,
+                                                                     type=QtCore.Qt.DirectConnection)
+        self.catalogues_view.clicked.connect(current_catalogue_activated)
 
         self.catalogues_view.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
 
