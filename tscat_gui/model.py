@@ -1,9 +1,12 @@
 import abc
+import datetime as dt
+import os
+import tempfile
+from typing import Any, List, Optional, cast, Union
 
 from PySide6 import QtCore
 
 import tscat
-from typing import Any, List, Optional, cast, Union
 
 from .utils.helper import get_entity_from_uuid_safe
 from .state import AppState
@@ -66,6 +69,9 @@ class _Catalogue(_Item):
 
     def uuid(self):
         return self._uuid
+
+    def flags(self):
+        return super().flags() | QtCore.Qt.ItemIsDragEnabled  # type: ignore
 
 
 def _get_catalogues(parent, removed_items: bool) -> list[_Catalogue]:
@@ -193,6 +199,28 @@ class CatalogueModel(QtCore.QAbstractItemModel):
                     return result
         return QtCore.QModelIndex()
 
+    def mimeTypes(self) -> List[str]:
+        return super().mimeTypes() + ['text/uri-list']
+
+    def mimeData(self, indexes: List[QtCore.QModelIndex]) -> QtCore.QMimeData:
+        mime_data = super().mimeData(indexes)
+
+        catalogue_uuid = indexes[0].data(UUIDRole)
+
+        now = dt.datetime.now().isoformat()
+        catalogue = get_entity_from_uuid_safe(catalogue_uuid)
+
+        path = os.path.join(tempfile.gettempdir(), 'tscat_gui', f'{catalogue.name}-{now}-export.json')
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        json = tscat.export_json(catalogue)
+        with open(path, 'w+') as f:
+            f.write(json)
+
+        path_url = QtCore.QUrl.fromLocalFile(path)
+        mime_data.setUrls([path_url])
+        return mime_data
+
 
 class EventModel(QtCore.QAbstractTableModel):
     _columns = ['start', 'stop', 'author', 'tags', 'products']
@@ -221,7 +249,8 @@ class EventModel(QtCore.QAbstractTableModel):
     def rowCount(self, parent: Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex] = None) -> int:
         return len(self.events)
 
-    def data(self, index: Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex], role: int = QtCore.Qt.DisplayRole):  # type: ignore
+    def data(self, index: Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex],
+             role: int = QtCore.Qt.DisplayRole):  # type: ignore
         if role == QtCore.Qt.DisplayRole:  # type: ignore
             if index.column() < len(self._columns):
                 key = self._columns[index.column()]
