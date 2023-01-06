@@ -92,6 +92,8 @@ class TSCatGUI(QtWidgets.QWidget):
 
         self.catalogues_view = QtWidgets.QTreeView()
         self.catalogues_view.setMinimumSize(300, 900)
+        self.catalogues_view.setDragEnabled(True)
+        self.catalogues_view.setDragDropMode(QtWidgets.QTreeView.DragDropMode.DragOnly)
         self.catalogues_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
 
         self.catalogue_sort_filter_model = _TrashAlwaysTopOrBottomSortFilterModel()
@@ -117,7 +119,6 @@ class TSCatGUI(QtWidgets.QWidget):
 
         def current_catalogue_changed(selected: QtCore.QModelIndex, deselected: QtCore.QModelIndex):
             current_catalogue_activated(selected)
-
 
         self.catalogues_view.selectionModel().currentChanged.connect(current_catalogue_changed,
                                                                      type=QtCore.Qt.DirectConnection)
