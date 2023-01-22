@@ -7,7 +7,7 @@ import re
 import typing
 
 # UTF-8 letters in the beginning, then also numbers and underscore
-_tag_validation_regex = re.compile(r'[a-z]\w*')
+_tag_validation_regex = re.compile(r'^[a-z][^,]*$')
 
 
 class _Keyword(EditableLabel):
