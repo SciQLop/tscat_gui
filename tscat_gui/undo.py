@@ -22,8 +22,8 @@ class _EntityBased(QtGui.QUndoCommand):
         self._select_state = state.select_state()
 
     def _active_entity(self) -> str:
-        assert self._select_state.active
-        return self._select_state.active
+        assert self._select_state.selected
+        return self._select_state.selected
 
     def _select(self, uuid: str, type: Optional[Union[Type[tscat._Catalogue], Type[tscat._Event]]] = None):
         if type is None:

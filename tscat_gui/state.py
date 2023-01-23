@@ -1,31 +1,30 @@
-from PySide6 import QtWidgets, QtGui
+from PySide6 import QtGui
 from PySide6 import QtCore
 
-import tscat
-
-from typing import Union, Type, Optional
+import copy
 import dataclasses
+from typing import Union, Type, Optional, Sequence
+
+import tscat
 
 from .logger import log
 
 
 @dataclasses.dataclass
 class SelectState:
-    active: Optional[str]
+    selected: Sequence[str]
     type: Union[Type[tscat._Catalogue], Type[tscat._Event]]
-    active_catalogue: Optional[str]
+    selected_catalogues: Sequence[str]
 
 
 class AppState(QtCore.QObject):
-    state_changed = QtCore.Signal(str, type, str)
+    state_changed = QtCore.Signal(str, type, list)
 
     undo_stack_clean_changed = QtCore.Signal(bool)
 
     def __init__(self) -> None:
         super().__init__()
-        self.active: Optional[str] = None
-        self.active_type: Union[Type[tscat._Catalogue], Type[tscat._Event]] = tscat._Catalogue
-        self.active_catalogue: Optional[str] = None
+        self._select_state = SelectState([], tscat._Catalogue, [])
 
         self._undo_stack = QtGui.QUndoStack()
         self._undo_stack.cleanChanged.connect(lambda x: self.undo_stack_clean_changed.emit(x))  # type: ignore
@@ -40,18 +39,19 @@ class AppState(QtCore.QObject):
         return self._undo_stack.createUndoAction(self), self._undo_stack.createRedoAction(self)
 
     def select_state(self) -> SelectState:
-        return SelectState(self.active, self.active_type, self.active_catalogue)
+        return copy.deepcopy(self._select_state)
 
-    def updated(self, action: str, type: Union[Type[tscat._Catalogue], Type[tscat._Event]], uuid: Optional[str]) -> None:
+    def updated(self, action: str, ty: Union[Type[tscat._Catalogue], Type[tscat._Event]],
+                uuids: Optional[Sequence[str]]) -> None:
         if action == 'active_select':
-            if uuid != self.active:
-                self.active = uuid
-                self.active_type = type
+            if uuids != self._select_state.selected:
+                self._select_state.selected = uuids[:]
+                self._select_state.type = ty
 
-                if self.active_type == tscat._Catalogue:
-                    self.active_catalogue = uuid
+                if self._select_state.type == tscat._Catalogue:
+                    self._select_state.selected_catalogues = uuids[:]
             else:
-                log.debug(f'already active "{uuid}"')
+                log.debug(f'already active "{uuids}"')
 
-        log.debug(f'app-state-updated action:{action}, type:{type}, uuid:{uuid}')
-        self.state_changed.emit(action, type, uuid)
+        log.debug(f'app-state-updated action:{action}, type:{ty}, uuids:{uuids}')
+        self.state_changed.emit(action, ty, uuids)

@@ -10,7 +10,7 @@ from .state import AppState
 
 from .predicate import SimplePredicateEditDialog
 
-from typing import Union, Dict, Optional, List
+from typing import Union, Dict, Optional, List, Type
 
 import tscat
 
@@ -274,29 +274,33 @@ class EntityEditView(QtWidgets.QScrollArea):
 
         self.edit: Optional[_EntityEditWidget] = None
         self.state = state
-        self.current_uuid: Optional[str] = None
+        self.current_uuids: List[str] = []
 
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)  # type: ignore
         self.setWidgetResizable(True)
 
         self.state.state_changed.connect(self.state_changed)
 
-    def state_changed(self, action: str, type, uuid: str):
+    def state_changed(self, action: str, type: Union[Type[tscat._Catalogue], Type[tscat._Event]],
+                      uuids: Optional[List[str]]) -> None:
         if action == 'active_select':
-            if self.current_uuid != uuid:
+            if self.current_uuids != uuids:
                 if self.edit:
                     self.edit.deleteLater()
                     self.edit = None
 
-                if uuid:
-                    self.edit = _EntityEditWidget(uuid, self.state)
+                if len(uuids) == 1:
+                    self.edit = _EntityEditWidget(uuids[0], self.state)
                     self.setWidget(self.edit)
-                self.current_uuid = uuid
-        elif action == 'deleted' and self.current_uuid == uuid:
-            if self.edit:
-                self.edit.deleteLater()
-                self.edit = None
-            self.current_uuid = None
-        elif action == 'changed' and self.current_uuid == uuid:
-            if self.edit:
-                self.edit.setup()
+                self.current_uuids = uuids
+        #
+        # elif action == 'deleted' and self.current_uuid == uuid:
+        #     # TODO special case, if delete UUID is one of the edited ones, we have to update the view
+        #     if self.edit:
+        #         self.edit.deleteLater()
+        #         self.edit = None
+        #     self.current_uuid = None
+        # elif action == 'changed' and self.current_uuid == uuids:
+        #     # TODO same here, if one of the edited UUIDs changed, we need to update the view
+        #     if self.edit:
+        #         self.edit.setup()

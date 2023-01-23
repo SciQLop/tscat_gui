@@ -230,7 +230,7 @@ class EventModel(QtCore.QAbstractTableModel):
     def __init__(self, state: AppState, parent=None):
         super().__init__(parent)
 
-        self.catalogue_uuid = None
+        self.catalogue_uuids: List[str] = []
         self.events: List[tscat._Event] = []
 
         state.state_changed.connect(self.set_catalogue)
@@ -267,15 +267,17 @@ class EventModel(QtCore.QAbstractTableModel):
     def reset(self):
         self.beginResetModel()
         self.events = []
-        if self.catalogue_uuid:
-            catalogue = get_entity_from_uuid_safe(self.catalogue_uuid)
-            if catalogue:
-                self.events = tscat.get_events(catalogue)
+        if self.catalogue_uuids:
+            filter = tscat.filtering.Any(
+                *[tscat.filtering.InCatalogue(get_entity_from_uuid_safe(uuid))
+                  for uuid in self.catalogue_uuids])
+
+            self.events = tscat.get_events(filter)
         self.endResetModel()
 
-    def set_catalogue(self, command, type, uuid):
+    def set_catalogue(self, command, type, uuids):
         if command in ['active_select', 'passive_select'] and type == tscat._Catalogue:
-            self.catalogue_uuid = uuid
+            self.catalogue_uuids = uuids
             self.reset()
 
     def index_from_uuid(self, uuid: str, parent=QtCore.QModelIndex()) -> QtCore.QModelIndex:
