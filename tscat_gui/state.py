@@ -3,7 +3,7 @@ from PySide6 import QtCore
 
 import tscat
 
-from typing import Union, Type
+from typing import Union, Type, Optional
 import dataclasses
 
 from .logger import log
@@ -11,9 +11,9 @@ from .logger import log
 
 @dataclasses.dataclass
 class SelectState:
-    active: str
+    active: Optional[str]
     type: Union[Type[tscat._Catalogue], Type[tscat._Event]]
-    active_catalogue: str
+    active_catalogue: Optional[str]
 
 
 class AppState(QtCore.QObject):
@@ -21,14 +21,14 @@ class AppState(QtCore.QObject):
 
     undo_stack_clean_changed = QtCore.Signal(bool)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.active: str = None
-        self.active_type = tscat._Catalogue
-        self.active_catalogue: str = None
+        self.active: Optional[str] = None
+        self.active_type: Union[Type[tscat._Catalogue], Type[tscat._Event]] = tscat._Catalogue
+        self.active_catalogue: Optional[str] = None
 
         self._undo_stack = QtGui.QUndoStack()
-        self._undo_stack.cleanChanged.connect(lambda x: self.undo_stack_clean_changed.emit(x))
+        self._undo_stack.cleanChanged.connect(lambda x: self.undo_stack_clean_changed.emit(x))  # type: ignore
 
     def push_undo_command(self, cls, *args) -> None:
         self._undo_stack.push(cls(self, *args))
@@ -42,7 +42,7 @@ class AppState(QtCore.QObject):
     def select_state(self) -> SelectState:
         return SelectState(self.active, self.active_type, self.active_catalogue)
 
-    def updated(self, action: str, type: Union[Type[tscat._Catalogue], Type[tscat._Event]], uuid: str) -> None:
+    def updated(self, action: str, type: Union[Type[tscat._Catalogue], Type[tscat._Event]], uuid: Optional[str]) -> None:
         if action == 'active_select':
             if uuid != self.active:
                 self.active = uuid

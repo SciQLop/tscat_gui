@@ -2,7 +2,7 @@ import abc
 import datetime as dt
 import os
 import tempfile
-from typing import Any, List, Optional, cast, Union
+from typing import Any, List, Optional, cast, Union, Sequence
 
 from PySide6 import QtCore
 
@@ -202,7 +202,7 @@ class CatalogueModel(QtCore.QAbstractItemModel):
     def mimeTypes(self) -> List[str]:
         return super().mimeTypes() + ['text/uri-list']
 
-    def mimeData(self, indexes: List[QtCore.QModelIndex]) -> QtCore.QMimeData:
+    def mimeData(self, indexes: Sequence[QtCore.QModelIndex]) -> QtCore.QMimeData:
         mime_data = super().mimeData(indexes)
 
         catalogue_uuid = indexes[0].data(UUIDRole)
@@ -212,6 +212,8 @@ class CatalogueModel(QtCore.QAbstractItemModel):
 
         path = os.path.join(tempfile.gettempdir(), 'tscat_gui', f'{catalogue.name}-{now}-export.json')
         os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        assert isinstance(catalogue, tscat._Catalogue)
 
         json = tscat.export_json(catalogue)
         with open(path, 'w+') as f:
@@ -243,10 +245,10 @@ class EventModel(QtCore.QAbstractTableModel):
                     return "Attributes"
         return None
 
-    def columnCount(self, parent: Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex] = None) -> int:
+    def columnCount(self, parent: Optional[Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex]] = None) -> int:
         return len(self._columns) + 1
 
-    def rowCount(self, parent: Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex] = None) -> int:
+    def rowCount(self, parent: Optional[Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex]] = None) -> int:
         return len(self.events)
 
     def data(self, index: Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex],
