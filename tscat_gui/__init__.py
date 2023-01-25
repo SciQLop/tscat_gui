@@ -146,15 +146,22 @@ class TSCatGUI(QtWidgets.QWidget):
                 self.new_event_action.setEnabled(False)
                 self.export_action.setEnabled(False)
 
-                # if uuid:
-                #     entity = get_entity_from_uuid_safe(uuid)
-                #     if entity.is_removed():
-                #         self.restore_from_trash_action.setEnabled(True)
-                #     else:
-                #         self.move_to_trash_action.setEnabled(True)
-                #     self.delete_action.setEnabled(True)
-                #     self.new_event_action.setEnabled(True)
-                #     self.export_action.setEnabled(True)
+                if uuids:
+                    if len(uuids) == 1:
+                        self.new_event_action.setEnabled(True)
+
+                    enable_restore = False
+                    enable_move_to_trash = False
+                    for entity in map(get_entity_from_uuid_safe, uuids):
+                        if entity.is_removed():
+                            enable_restore |= True
+                        else:
+                            enable_move_to_trash |= True
+
+                    self.restore_from_trash_action.setEnabled(enable_restore)
+                    self.move_to_trash_action.setEnabled(enable_move_to_trash)
+                    self.delete_action.setEnabled(True)
+                    self.export_action.setEnabled(True)
 
         self.state.state_changed.connect(state_changed)
 
@@ -310,7 +317,7 @@ class TSCatGUI(QtWidgets.QWidget):
         def export_to_file():
             filename, filetype = QtWidgets.QFileDialog.getSaveFileName(
                 self,
-                "Specify the filename for exporting the selected catalogue",
+                "Specify the filename for exporting the selected catalogues",
                 str(Path.home()),
                 "JSON Document (*.json)")
             if filename == '':
@@ -321,16 +328,17 @@ class TSCatGUI(QtWidgets.QWidget):
 
             try:
                 with open(filename, 'w+') as f:
-                    catalogue = get_entity_from_uuid_safe(self.state.select_state().active_catalogue)
-                    json = tscat.export_json(catalogue)
+                    catalogues = [get_entity_from_uuid_safe(uuid)
+                                  for uuid in self.state.select_state().selected_catalogues]
+                    json = tscat.export_json(catalogues)
                     f.write(json)
                 QtWidgets.QMessageBox.information(self,
                                                   "Catalogue export",
-                                                  "The selected catalogue has been successfully exported")
+                                                  "The selected catalogues have been successfully exported")
             except Exception as e:
                 QtWidgets.QMessageBox.critical(self,
                                                "Catalogue export",
-                                               f"The selected catalogue could not be exported to {filename} due to '{e}'.")
+                                               f"The selected catalogues could not be exported to {filename} due to '{e}'.")
 
         action.triggered.connect(export_to_file)
         action.setEnabled(False)

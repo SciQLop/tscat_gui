@@ -205,18 +205,17 @@ class CatalogueModel(QtCore.QAbstractItemModel):
     def mimeData(self, indexes: Sequence[QtCore.QModelIndex]) -> QtCore.QMimeData:
         mime_data = super().mimeData(indexes)
 
-        catalogue_uuid = indexes[0].data(UUIDRole)
+        catalogues = [get_entity_from_uuid_safe(i.data(UUIDRole)) for i in indexes]
 
         now = dt.datetime.now().isoformat()
-        catalogue = get_entity_from_uuid_safe(catalogue_uuid)
 
-        path = os.path.join(tempfile.gettempdir(), 'tscat_gui', f'{catalogue.name}-{now}-export.json')
+        name = '-and-'.join(c.name for c in catalogues)
+
+        path = os.path.join(tempfile.gettempdir(), 'tscat_gui', f'{name}-{now}-export.json')
         os.makedirs(os.path.dirname(path), exist_ok=True)
 
-        assert isinstance(catalogue, tscat._Catalogue)
-
-        json = tscat.export_json(catalogue)
         with open(path, 'w+') as f:
+            json = tscat.export_json(catalogues)
             f.write(json)
 
         path_url = QtCore.QUrl.fromLocalFile(path)
