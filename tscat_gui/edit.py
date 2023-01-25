@@ -10,7 +10,7 @@ from .state import AppState
 
 from .predicate import SimplePredicateEditDialog
 
-from typing import Union, Dict, Optional
+from typing import Union, Dict, Optional, List
 
 import tscat
 
@@ -86,7 +86,7 @@ _type_name = {
     'Float': float,
     'Integer': int,
     'String': str,
-    'Word List': list[str],
+    'Word List': List[str],
 }
 
 _type_name_initial_value = {
@@ -112,7 +112,7 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
         self._layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self._layout)
 
-    def setup(self, attributes: list[str], entity: Union[tscat._Catalogue, tscat._Event]):
+    def setup(self, attributes: List[str], entity: Union[tscat._Catalogue, tscat._Event]):
         self.entity = entity
 
         # clear layout, destroy all widgets

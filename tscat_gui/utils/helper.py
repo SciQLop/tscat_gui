@@ -1,7 +1,7 @@
 from PySide6 import QtGui, QtWidgets, QtCore
 
 import re
-from typing import Union, cast, Optional
+from typing import Union, cast, Optional, Sequence
 import datetime as dt
 
 import tscat
@@ -34,7 +34,7 @@ _valid_attribute_name_re = re.compile(r'^[A-Za-z][A-Za-z_0-9]*$')
 
 
 class AttributeNameValidator(QtGui.QValidator):
-    def __init__(self, invalid_words: list[str] = [], parent=None):
+    def __init__(self, invalid_words: Sequence[str] = [], parent=None):
         super().__init__(parent)
         self.invalid_words = invalid_words
 

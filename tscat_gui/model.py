@@ -74,7 +74,7 @@ class _Catalogue(_Item):
         return super().flags() | QtCore.Qt.ItemIsDragEnabled  # type: ignore
 
 
-def _get_catalogues(parent, removed_items: bool) -> list[_Catalogue]:
+def _get_catalogues(parent, removed_items: bool) -> List[_Catalogue]:
     return [_Catalogue(parent, c.uuid)
             for c in tscat.get_catalogues(removed_items=removed_items)]
 

@@ -84,7 +84,7 @@ class _Keyword(EditableLabel):
 class EditableKeywordListWidget(QtWidgets.QWidget):
     editingFinished = QtCore.Signal()
 
-    def __init__(self, strings: list[str], completion_strings: list[str] = [], parent=None):
+    def __init__(self, strings: typing.List[str], completion_strings: typing.List[str] = [], parent=None):
         super().__init__(parent)
 
         self._layout = FlowLayout()
@@ -138,5 +138,5 @@ class EditableKeywordListWidget(QtWidgets.QWidget):
 
         self._update_tag_texts()
 
-    def value(self) -> list[str]:
+    def value(self) -> typing.List[str]:
         return [tag.text for tag in self.tags if tag.text]
