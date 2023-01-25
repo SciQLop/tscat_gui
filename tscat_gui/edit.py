@@ -1,4 +1,4 @@
-from PySide6 import QtCore, QtWidgets, QtGui
+from PySide6 import QtCore, QtWidgets
 
 from .utils.keyword_list import EditableKeywordListWidget
 from .utils.editable_label import EditableLabel
@@ -10,7 +10,7 @@ from .state import AppState
 
 from .predicate import SimplePredicateEditDialog
 
-from typing import Union, Dict, Optional
+from typing import Union, Dict, Optional, List
 
 import tscat
 
@@ -20,7 +20,7 @@ import datetime as dt
 class _UuidLabelDelegate(QtWidgets.QLabel):
     editingFinished = QtCore.Signal()  # never emitted
 
-    def __init__(self, value: str, parent: QtWidgets.QWidget = None):
+    def __init__(self, value: str, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(value, parent)
         self.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)  # type: ignore
 
@@ -28,7 +28,7 @@ class _UuidLabelDelegate(QtWidgets.QLabel):
 class _PredicateDelegate(QtWidgets.QWidget):
     editingFinished = QtCore.Signal()
 
-    def __init__(self, value: Union[tscat.Predicate, None], parent: QtWidgets.QWidget = None):
+    def __init__(self, value: Optional[tscat.Predicate], parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self.predicate = value
@@ -86,7 +86,7 @@ _type_name = {
     'Float': float,
     'Integer': int,
     'String': str,
-    'Word List': list[str],
+    'Word List': List[str],
 }
 
 _type_name_initial_value = {
@@ -100,7 +100,7 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
     def create_label(self, text: str) -> QtWidgets.QLabel:
         return QtWidgets.QLabel(text.title())
 
-    def __init__(self, title: str, uuid: str, state: AppState, parent: QtWidgets.QWidget = None):
+    def __init__(self, title: str, uuid: str, state: AppState, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(title, parent)
 
         self.uuid = uuid
@@ -112,7 +112,7 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
         self._layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self._layout)
 
-    def setup(self, attributes: list[str], entity: Union[tscat._Catalogue, tscat._Event]):
+    def setup(self, attributes: List[str], entity: Union[tscat._Catalogue, tscat._Event]):
         self.entity = entity
 
         # clear layout, destroy all widgets
@@ -150,7 +150,7 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
 
 
 class FixedAttributesGroupBox(AttributesGroupBox):
-    def __init__(self, uuid: str, state: AppState, parent: QtWidgets.QWidget = None):
+    def __init__(self, uuid: str, state: AppState, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__("Global", uuid, state, parent)
 
         self.setup()
@@ -175,7 +175,7 @@ class CustomAttributesGroupBox(AttributesGroupBox):
 
         return name
 
-    def __init__(self, uuid: str, state: AppState, parent: QtWidgets.QWidget = None):
+    def __init__(self, uuid: str, state: AppState, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__("Custom", uuid, state, parent)
 
         self.setup()

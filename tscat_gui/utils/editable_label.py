@@ -18,7 +18,7 @@ class EditableLabel(QtWidgets.QFrame):
                 self.clicked.emit()
             super().mousePressEvent(event)
 
-        def enterEvent(self, event: QtCore.QEvent) -> None:  # type: ignore
+        def enterEvent(self, event: QtGui.QEnterEvent) -> None:
             self.setCursor(QtCore.Qt.IBeamCursor)  # type: ignore
             super().enterEvent(event)
 
@@ -66,7 +66,7 @@ class EditableLabel(QtWidgets.QFrame):
 
             super().keyPressEvent(event)
 
-    def __init__(self, text: str, validator: QtGui.QValidator = None, parent=None):
+    def __init__(self, text: str, validator: typing.Optional[QtGui.QValidator] = None, parent=None):
         super().__init__(parent)
 
         self.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)  # type: ignore

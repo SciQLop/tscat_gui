@@ -1,3 +1,5 @@
+import typing
+
 from PySide6 import QtCore, QtWidgets, QtGui
 
 from .utils.helper import AttributeNameValidator, IntDelegate, FloatDelegate, DateTimeDelegate, BoolDelegate, \
@@ -437,7 +439,7 @@ class _LogicalCombination(_PredicateWidget):
         if predicate is None:
             predicate = Any()
 
-        self._children: list[_PredicateWidget] = []
+        self._children: typing.List[_PredicateWidget] = []
 
         self._layout = QtWidgets.QVBoxLayout()
         self._layout.setContentsMargins(20, 0, 0, 0)
@@ -479,6 +481,13 @@ class _LogicalCombination(_PredicateWidget):
         self.setLayout(self._layout)
 
     def new(self, cls: Type[_PredicateWidget]):
+        assert isinstance(cls, (
+            _LogicalCombination,
+            _Condition,
+            _Comparison,
+            _AttributeIsPresent,
+            _StringInStringList,
+            _InCatalogue))
         t = cls(predicate=None, parent=self)
         self._layout.insertWidget(self._layout.count() - 1, t)
         self.add_child_predicate(t)

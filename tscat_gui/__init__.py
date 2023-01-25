@@ -370,6 +370,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
     def create_event(self, start: dt.datetime, stop: dt.datetime, author: str, catalogue_uuid: str) -> tscat._Event:
         catalogue = get_entity_from_uuid_safe(catalogue_uuid)
+        assert isinstance(catalogue, tscat._Catalogue)
         with tscat.Session() as s:
             event = s.create_event(start, stop, author)
             tscat.add_events_to_catalogue(catalogue, event)

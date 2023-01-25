@@ -1,7 +1,7 @@
 from PySide6 import QtGui, QtWidgets, QtCore
 
 import re
-from typing import Union, cast
+from typing import Union, cast, Optional, Sequence
 import datetime as dt
 
 import tscat
@@ -34,7 +34,7 @@ _valid_attribute_name_re = re.compile(r'^[A-Za-z][A-Za-z_0-9]*$')
 
 
 class AttributeNameValidator(QtGui.QValidator):
-    def __init__(self, invalid_words: list[str] = [], parent=None):
+    def __init__(self, invalid_words: Sequence[str] = [], parent=None):
         super().__init__(parent)
         self.invalid_words = invalid_words
 
@@ -52,7 +52,7 @@ class AttributeNameValidator(QtGui.QValidator):
 
 
 class IntDelegate(QtWidgets.QSpinBox):
-    def __init__(self, value: Union[int, None] = None, parent: QtWidgets.QWidget = None):
+    def __init__(self, value: Union[int, None] = None, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
         self.setRange(-2 ** 31, 2 ** 31 - 1)
         if value is None:
@@ -64,7 +64,7 @@ class IntDelegate(QtWidgets.QSpinBox):
 
 
 class FloatDelegate(QtWidgets.QLineEdit):
-    def __init__(self, value: Union[float, None] = None, parent: QtWidgets.QWidget = None):
+    def __init__(self, value: Union[float, None] = None, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         validator = QtGui.QDoubleValidator(self)
@@ -85,7 +85,7 @@ class FloatDelegate(QtWidgets.QLineEdit):
 class BoolDelegate(QtWidgets.QCheckBox):
     editingFinished = QtCore.Signal()
 
-    def __init__(self, value: Union[bool, None] = None, parent: QtWidgets.QWidget = None):
+    def __init__(self, value: Union[bool, None] = None, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
         self.setChecked(False if value is None else value)
         self.stateChanged.connect(lambda: self.editingFinished.emit())  # type: ignore
@@ -98,7 +98,7 @@ class BoolDelegate(QtWidgets.QCheckBox):
 
 
 class StrDelegate(QtWidgets.QLineEdit):
-    def __init__(self, value: Union[str, None] = None, parent: QtWidgets.QWidget = None):
+    def __init__(self, value: Union[str, None] = None, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__("" if value is None else value, parent)
 
     def value(self) -> str:
@@ -109,7 +109,7 @@ class StrDelegate(QtWidgets.QLineEdit):
 
 
 class DateTimeDelegate(QtWidgets.QDateTimeEdit):
-    def __init__(self, value: Union[dt.datetime, None] = None, parent: QtWidgets.QWidget = None):
+    def __init__(self, value: Union[dt.datetime, None] = None, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(dt.datetime.now() if value is None else value, parent)  # type: ignore
 
     def value(self) -> dt.datetime:
