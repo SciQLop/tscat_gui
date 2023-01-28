@@ -481,13 +481,13 @@ class _LogicalCombination(_PredicateWidget):
         self.setLayout(self._layout)
 
     def new(self, cls: Type[_PredicateWidget]):
-        assert isinstance(cls, (
+        assert cls in (
             _LogicalCombination,
             _Condition,
             _Comparison,
             _AttributeIsPresent,
             _StringInStringList,
-            _InCatalogue))
+            _InCatalogue)
         t = cls(predicate=None, parent=self)
         self._layout.insertWidget(self._layout.count() - 1, t)
         self.add_child_predicate(t)
