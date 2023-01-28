@@ -42,10 +42,10 @@ class _TrashAlwaysTopOrBottomSortFilterModel(QtCore.QSortFilterProxyModel):
 
 
 class TSCatGUI(QtWidgets.QWidget):
-    event_selected = QtCore.Signal(str)
-    catalogue_selected = QtCore.Signal(str)
-    event_changed = QtCore.Signal(str)
-    catalogue_changed = QtCore.Signal(str)
+    events_selected = QtCore.Signal(list)
+    catalogues_selected = QtCore.Signal(list)
+    events_changed = QtCore.Signal(list)
+    catalogues_changed = QtCore.Signal(list)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -311,7 +311,8 @@ class TSCatGUI(QtWidgets.QWidget):
         action.triggered.connect(import_from_file)
         toolbar.addAction(action)
 
-        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowDown), "Export Catalogue",
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowDown),
+                               "Export Catalogue",
                                self)
 
         def export_to_file():
@@ -336,9 +337,10 @@ class TSCatGUI(QtWidgets.QWidget):
                                                   "Catalogue export",
                                                   "The selected catalogues have been successfully exported")
             except Exception as e:
-                QtWidgets.QMessageBox.critical(self,
-                                               "Catalogue export",
-                                               f"The selected catalogues could not be exported to {filename} due to '{e}'.")
+                QtWidgets.QMessageBox.critical(
+                    self,
+                    "Catalogue export",
+                    f"The selected catalogues could not be exported to {filename} due to '{e}'.")
 
         action.triggered.connect(export_to_file)
         action.setEnabled(False)
@@ -351,24 +353,23 @@ class TSCatGUI(QtWidgets.QWidget):
         self.setLayout(layout)
 
     def _external_signal_emission(self, action: str, type: Union[tscat._Catalogue, tscat._Event], uuids: Sequence[str]):
-        uuid = uuids[-1] if uuids else None
         if action == "active_select":
             if type == tscat._Catalogue:
-                self.catalogue_selected.emit(uuid)
+                self.catalogues_selected.emit(uuids)
             else:
-                self.event_selected.emit(uuid)
+                self.events_selected.emit(uuids)
 
         elif action == 'changed':
             if type == tscat._Catalogue:
-                self.catalogue_changed.emit(uuid)
+                self.catalogues_changed.emit(uuids)
             else:
-                self.event_changed.emit(uuid)
+                self.events_changed.emit(uuids)
 
     def update_event_range(self, uuid: str, start: dt.datetime, stop: dt.datetime) -> None:
         event = get_entity_from_uuid_safe(uuid)
         event.start = start
         event.stop = stop
-        self.state.updated('changed', tscat._Event, uuid)
+        self.state.updated('changed', tscat._Event, [uuid])
 
     def create_event(self, start: dt.datetime, stop: dt.datetime, author: str, catalogue_uuid: str) -> tscat._Event:
         catalogue = get_entity_from_uuid_safe(catalogue_uuid)
@@ -377,14 +378,14 @@ class TSCatGUI(QtWidgets.QWidget):
             event = s.create_event(start, stop, author)
             tscat.add_events_to_catalogue(catalogue, event)
 
-        self.state.updated('inserted', tscat._Event, event.uuid)
+        self.state.updated('inserted', tscat._Event, [event.uuid])
 
         return event
 
     def move_to_trash(self, uuid: str) -> None:
         entity = get_entity_from_uuid_safe(uuid)
         entity.remove()
-        self.state.updated('moved', type(entity), uuid)
+        self.state.updated('moved', type(entity), [uuid])
 
     def save(self) -> None:
         tscat.save()
