@@ -281,8 +281,9 @@ class EntityEditView(QtWidgets.QScrollArea):
 
         self.state.state_changed.connect(self.state_changed)
 
-    def state_changed(self, action: str, type: Union[Type[tscat._Catalogue], Type[tscat._Event]],
-                      uuids: Optional[List[str]]) -> None:
+    def state_changed(self, action: str,
+                      _: Union[Type[tscat._Catalogue], Type[tscat._Event]],
+                      uuids: List[str]) -> None:
         if action == 'active_select':
             if self.current_uuids != uuids:
                 if self.edit:

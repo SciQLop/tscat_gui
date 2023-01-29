@@ -3,8 +3,7 @@ from dataclasses import dataclass
 from copy import deepcopy
 import datetime as dt
 import os
-from uuid import UUID
-from typing import Union, Optional, Type, List, Sequence, Dict
+from typing import Union, Optional, Type, List, Dict
 
 from PySide6 import QtGui
 
@@ -20,15 +19,13 @@ class _EntityBased(QtGui.QUndoCommand):
         self.state = state
         self._select_state = state.select_state()
 
-    def _selected_entities(self) -> Sequence[str]:
-        assert self._select_state.selected
+    def _selected_entities(self) -> List[str]:
         return self._select_state.selected
 
     def _mapped_selected_entities(self) -> List[Union[tscat._Catalogue, tscat._Event]]:
-        for entity in map(get_entity_from_uuid_safe, self._selected_entities()):
-            yield entity
+        return list(map(get_entity_from_uuid_safe, self._selected_entities()))
 
-    def _select(self, uuids: Sequence[str],
+    def _select(self, uuids: List[str],
                 type: Optional[Union[Type[tscat._Catalogue], Type[tscat._Event]]] = None):
         if type is None:
             type = self._select_state.type

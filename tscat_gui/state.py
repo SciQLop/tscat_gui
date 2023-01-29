@@ -3,7 +3,7 @@ from PySide6 import QtCore
 
 import copy
 import dataclasses
-from typing import Union, Type, Optional, Sequence
+from typing import Union, Type, Optional, List
 
 import tscat
 
@@ -12,9 +12,9 @@ from .logger import log
 
 @dataclasses.dataclass
 class SelectState:
-    selected: Sequence[str]
+    selected: List[str]
     type: Union[Type[tscat._Catalogue], Type[tscat._Event]]
-    selected_catalogues: Sequence[str]
+    selected_catalogues: List[str]
 
 
 class AppState(QtCore.QObject):
@@ -42,7 +42,7 @@ class AppState(QtCore.QObject):
         return copy.deepcopy(self._select_state)
 
     def updated(self, action: str, ty: Union[Type[tscat._Catalogue], Type[tscat._Event]],
-                uuids: Optional[Sequence[str]]) -> None:
+                uuids: List[str]) -> None:
         if action == 'active_select':
             if uuids != self._select_state.selected:
                 self._select_state.selected = uuids[:]

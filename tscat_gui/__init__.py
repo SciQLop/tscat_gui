@@ -118,17 +118,18 @@ class TSCatGUI(QtWidgets.QWidget):
                                                                        type=QtCore.Qt.DirectConnection)
 
         def state_changed(action: str, type: Union[Type[tscat._Catalogue], Type[tscat._Event]],
-                          uuids: Optional[Sequence[str]]) -> None:
+                          uuids: Sequence[str]) -> None:
             if action in ['changed', 'moved', 'inserted', 'deleted', 'active_select', 'passive_select']:
                 if type == tscat._Catalogue:
                     if action not in ['active_select', 'passive_select']:
                         self.catalogue_model.reset()
 
-                    indexes = [self.catalogue_model.index_from_uuid(uuid) for uuid in uuids]
-                    indexes = [self.catalogue_sort_filter_model.mapFromSource(index) for index in indexes]
+                    indexes = list(map(self.catalogue_model.index_from_uuid, uuids))
+                    indexes = list(map(self.catalogue_sort_filter_model.mapFromSource, indexes))
                     self.programmatic_select = True
                     for index in indexes:
-                        self.catalogues_view.selectionModel().select(index, QtCore.QItemSelectionModel.Select)
+                        self.catalogues_view.selectionModel().select(index,
+                                                                     QtCore.QItemSelectionModel.SelectionFlag.Select)
                     self.programmatic_select = False
                 else:
                     if action not in ['active_select', 'passive_select']:

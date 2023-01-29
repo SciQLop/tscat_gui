@@ -481,6 +481,7 @@ class _LogicalCombination(_PredicateWidget):
         self.setLayout(self._layout)
 
     def new(self, cls: Type[_PredicateWidget]):
+        assert isinstance(cls, _PredicateWidget)
         assert cls in (
             _LogicalCombination,
             _Condition,
