@@ -205,7 +205,7 @@ class CatalogueModel(QtCore.QAbstractItemModel):
     def mimeData(self, indexes: Sequence[QtCore.QModelIndex]) -> QtCore.QMimeData:
         mime_data = super().mimeData(indexes)
 
-        catalogues = [get_entity_from_uuid_safe(i.data(UUIDRole)) for i in indexes]
+        catalogues = [cast(tscat._Catalogue, get_entity_from_uuid_safe(i.data(UUIDRole))) for i in indexes]
 
         now = dt.datetime.now().isoformat()
 

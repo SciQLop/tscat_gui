@@ -32,7 +32,7 @@ class _Root(_PredicateWidget):
     def __init__(self, predicate: Predicate):
         super().__init__(None)
 
-        self._first = predicate_to_widget_factory(predicate, None)
+        self._first = predicate_to_widget_factory(predicate, self)
         if self._first:
             c = QtWidgets.QHBoxLayout()
             c.setContentsMargins(0, 0, 0, 0)
@@ -355,7 +355,8 @@ operators = [
 
 class _Condition(_PredicateWidget):
     def __init__(self, predicate: Union[Comparison, Match, In, Has, InCatalogue, None],
-                 parent: Optional[_PredicateWidget]):
+                 negate: bool,
+                 parent: _PredicateWidget):
         super().__init__(parent)
 
         self._hlayout = QtWidgets.QHBoxLayout()
@@ -433,7 +434,10 @@ class _Condition(_PredicateWidget):
 
 
 class _LogicalCombination(_PredicateWidget):
-    def __init__(self, predicate: Union[All, Any, None], parent: Optional[_PredicateWidget]):
+    def __init__(self,
+                 predicate: Union[All, Any, None],
+                 negate: bool,
+                 parent: _PredicateWidget):
         super().__init__(parent)
 
         if predicate is None:
@@ -480,16 +484,14 @@ class _LogicalCombination(_PredicateWidget):
 
         self.setLayout(self._layout)
 
-    def new(self, cls: Type[_PredicateWidget]):
-        assert not isinstance(cls, _PredicateWidget)
-        assert cls in (
-            _LogicalCombination,
-            _Condition,
-            _Comparison,
-            _AttributeIsPresent,
-            _StringInStringList,
-            _InCatalogue)
-        t = cls(predicate=None, parent=self)
+    def new(self, cls: Union[
+            Type['_LogicalCombination'],
+            Type[_Condition],
+            Type[_Comparison],
+            Type[_AttributeIsPresent],
+            Type[_StringInStringList],
+            Type[_InCatalogue]]):
+        t = cls(predicate=None, negate=False, parent=self)
         self._layout.insertWidget(self._layout.count() - 1, t)
         self.add_child_predicate(t)
         self.changed.emit()
@@ -517,13 +519,13 @@ class _LogicalCombination(_PredicateWidget):
         self.changed.emit()
 
 
-def predicate_to_widget_factory(predicate: Predicate, parent: Optional[_PredicateWidget]) -> \
+def predicate_to_widget_factory(predicate: Predicate, parent: _PredicateWidget) -> \
     Union[_LogicalCombination, _Condition]:
     if isinstance(predicate, Any) or isinstance(predicate, All):
-        return _LogicalCombination(predicate, parent)
+        return _LogicalCombination(predicate, False, parent)
     elif isinstance(predicate, Comparison) or isinstance(predicate, Match) or \
         isinstance(predicate, In) or isinstance(predicate, Has) or isinstance(predicate, InCatalogue):
-        return _Condition(predicate, parent)
+        return _Condition(predicate, False, parent)
 
     raise ValueError('Unknown predicate type for factory')
 

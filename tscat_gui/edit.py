@@ -85,6 +85,7 @@ _delegate_widget_class_factory = {
     dt.datetime: DateTimeDelegate,
 }
 
+
 class _MultipleDifferentValuesDelegate(QtWidgets.QPushButton):
     editingFinished = QtCore.Signal()
 
@@ -95,7 +96,7 @@ class _MultipleDifferentValuesDelegate(QtWidgets.QPushButton):
         assert len(values) > 0
         self.reset_value = values[0]
 
-        self.clicked.connect(lambda x: self.editingFinished.emit())
+        self.clicked.connect(lambda x: self.editingFinished.emit())  # type: ignore
 
     def value(self) -> Any:
         return self.reset_value
@@ -118,7 +119,7 @@ _type_name_initial_value = {
 class AttributesGroupBox(QtWidgets.QGroupBox):
     valuesChanged = QtCore.Signal()
 
-    def create_label(self, text: str) -> QtWidgets.QLabel:
+    def create_label(self, text: str) -> QtWidgets.QLabel:  # type: ignore
         return QtWidgets.QLabel(text.title())
 
     def __init__(self, title: str,
@@ -145,7 +146,7 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
             else:
                 break
 
-        self.values = values
+        self.alues = values
         self.attribute_name_labels = {}
         for row, attr in enumerate(values.keys()):
             label = self.create_label(attr)
@@ -155,6 +156,9 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
 
             value = values[attr]
 
+            cls: Type[Union[_MultipleDifferentValuesDelegate, _UuidLabelDelegate, _PredicateDelegate,
+                       IntDelegate, StrDelegate, FloatDelegate,
+                       EditableKeywordListWidget, BoolDelegate, DateTimeDelegate]]
             if isinstance(value, _MultipleDifferentValues):
                 cls = _MultipleDifferentValuesDelegate
             elif attr in _delegate_widget_class_factory:
@@ -163,7 +167,8 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
                 cls = _delegate_widget_class_factory.get(type(value), QtWidgets.QLabel)
 
             widget = cls(value)
-            widget.editingFinished.connect(lambda w=widget, a=attr: self._editing_finished(a, w.value()))
+            # the editingFinished-signal is not seen by mypy coming from PySide6
+            widget.editingFinished.connect(lambda w=widget, a=attr: self._editing_finished(a, w.value()))  # type: ignore
 
             self._layout.addWidget(widget, row, 1)
 
@@ -201,7 +206,7 @@ class FixedAttributesGroupBox(AttributesGroupBox):
 
 class CustomAttributesGroupBox(AttributesGroupBox):
 
-    def create_label(self, text: str) -> EditableLabel:
+    def create_label(self, text: str) -> EditableLabel:  # type: ignore
         attrs = self.all_attribute_names[:]
         attrs.remove(text)
 
@@ -216,10 +221,10 @@ class CustomAttributesGroupBox(AttributesGroupBox):
                  parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__("Custom", uuids, state, parent)
 
-        self.all_attribute_names = []
+        self.all_attribute_names: List[str] = []
         self.setup()
 
-    def setup(self) -> None:
+    def setup(self) -> None:  # type: ignore
         if len(self.uuids) != 1:
             return
 
@@ -240,7 +245,7 @@ class CustomAttributesGroupBox(AttributesGroupBox):
         for row, attr in enumerate(attributes):
             but = QtWidgets.QToolButton()
             but.setText('✖')
-            but.clicked.connect(lambda a=attr, x=False: self._delete(a))
+            but.clicked.connect(lambda a=attr, x=False: self._delete(a))  # type: ignore
             layout.addWidget(but, row, 2)
 
         # add the new-attribute-button
@@ -253,7 +258,7 @@ class CustomAttributesGroupBox(AttributesGroupBox):
 
         button = QtWidgets.QToolButton()
         button.setText('➕')
-        button.clicked.connect(self._new)
+        button.clicked.connect(self._new)  # type: ignore
         new_section_layout.addWidget(button)
 
         new_section_layout.addStretch()
@@ -305,6 +310,7 @@ class _EntityEditWidget(QtWidgets.QWidget):
             self.fixed_attributes = FixedAttributesGroupBox(uuids, state)
             layout.addWidget(self.fixed_attributes)
 
+            self.attributes: Optional[CustomAttributesGroupBox]
             if len(uuids) == 1:
                 self.attributes = CustomAttributesGroupBox(uuids, state)
                 layout.addWidget(self.attributes)
