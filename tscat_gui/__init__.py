@@ -65,22 +65,26 @@ class TSCatGUI(QtWidgets.QWidget):
 
         self.events_view.setModel(self.events_sort_model)
         self.events_view.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
-        self.events_view.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
+        self.events_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
 
         self.programmatic_select = False
 
-        def current_event_changed(selected: QtCore.QModelIndex, deselected: QtCore.QModelIndex):
+        def current_event_changed(_: QtCore.QModelIndex, __: QtCore.QModelIndex):
             if self.programmatic_select:
                 return
-            if selected.isValid():
-                if not deselected.isValid() or deselected.row() != selected.row():
-                    uuid = self.events_sort_model.data(selected, UUIDRole)
-                    self.state.updated('active_select', tscat._Event, [uuid])
-            else:
-                self.state.updated('active_select', tscat._Event, [])
 
-        self.events_view.selectionModel().currentChanged.connect(current_event_changed,
-                                                                 type=QtCore.Qt.DirectConnection)
+            uuids = [index.data(UUIDRole) for index in self.events_view.selectedIndexes()]
+            self.state.updated('active_select', tscat._Event, uuids)
+
+            # if selected.isValid():
+            #     if not deselected.isValid() or deselected.row() != selected.row():
+            #         uuid = self.events_sort_model.data(selected, UUIDRole)
+            #         self.state.updated('active_select', tscat._Event, [uuid])
+            # else:
+            #     self.state.updated('active_select', tscat._Event, [])
+
+        self.events_view.selectionModel().selectionChanged.connect(current_event_changed,
+                                                                   type=QtCore.Qt.DirectConnection)
 
         self.edit_view = EntityEditView(self.state, self)
 
@@ -107,7 +111,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
         self.catalogues_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
-        def catalogue_selection_changed(selected: QtCore.QItemSelection, deselected: QtCore.QItemSelection) -> None:
+        def catalogue_selection_changed(_: QtCore.QItemSelection, __: QtCore.QItemSelection) -> None:
             if self.programmatic_select:
                 return
 

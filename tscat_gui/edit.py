@@ -146,7 +146,7 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
             else:
                 break
 
-        self.alues = values
+        self.values = values
         self.attribute_name_labels = {}
         for row, attr in enumerate(values.keys()):
             label = self.create_label(attr)
