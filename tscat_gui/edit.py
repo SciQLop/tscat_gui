@@ -170,6 +170,10 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
             # the editingFinished-signal is not seen by mypy coming from PySide6
             widget.editingFinished.connect(lambda w=widget, a=attr: self._editing_finished(a, w.value()))  # type: ignore
 
+            # special case for UUIDs - read-only
+            if attr == 'uuid':
+                widget.setEnabled(False)
+
             self._layout.addWidget(widget, row, 1)
 
     def _editing_finished(self, attr, value):
