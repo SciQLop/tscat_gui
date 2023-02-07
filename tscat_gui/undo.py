@@ -250,12 +250,14 @@ class RestoreEntityFromTrash(MoveRestoreTrashedEntity):
     def _undo(self):
         self.remove()
 
+
 @dataclass
 class _DeletedEntity:
     type: Union[Type[tscat._Catalogue], Type[tscat._Event]]
     in_trash: bool
     data: Dict
     linked_uuids: List[str]
+
 
 class DeletePermanently(_EntityBased):
     def __init__(self, state: AppState, parent=None):

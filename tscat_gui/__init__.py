@@ -73,15 +73,9 @@ class TSCatGUI(QtWidgets.QWidget):
             if self.programmatic_select:
                 return
 
-            uuids = [index.data(UUIDRole) for index in self.events_view.selectedIndexes()]
+            uuids = [index.data(UUIDRole) for index in self.events_view.selectedIndexes() if index.column() == 0]
             self.state.updated('active_select', tscat._Event, uuids)
 
-            # if selected.isValid():
-            #     if not deselected.isValid() or deselected.row() != selected.row():
-            #         uuid = self.events_sort_model.data(selected, UUIDRole)
-            #         self.state.updated('active_select', tscat._Event, [uuid])
-            # else:
-            #     self.state.updated('active_select', tscat._Event, [])
 
         self.events_view.selectionModel().selectionChanged.connect(current_event_changed,
                                                                    type=QtCore.Qt.DirectConnection)
@@ -131,6 +125,7 @@ class TSCatGUI(QtWidgets.QWidget):
                     indexes = list(map(self.catalogue_model.index_from_uuid, uuids))
                     indexes = list(map(self.catalogue_sort_filter_model.mapFromSource, indexes))
                     self.programmatic_select = True
+                    self.catalogues_view.clearSelection()
                     for index in indexes:
                         self.catalogues_view.selectionModel().select(index,
                                                                      QtCore.QItemSelectionModel.SelectionFlag.Select)
@@ -138,11 +133,16 @@ class TSCatGUI(QtWidgets.QWidget):
                 else:
                     if action not in ['active_select', 'passive_select']:
                         self.events_model.reset()
-                    # index = self.events_model.index_from_uuid(uuid)
-                    # index = self.events_sort_model.mapFromSource(index)
-                    # self.programmatic_select = True
-                    # self.events_view.setCurrentIndex(index)
-                    # self.programmatic_select = False
+
+                    indexes = list(map(self.events_model.index_from_uuid, uuids))
+                    indexes = list(map(self.events_sort_model.mapFromSource, indexes))
+                    self.programmatic_select = True
+                    self.events_view.clearSelection()
+                    for index in indexes:
+                        self.events_view.selectionModel().select(index,
+                                                                 QtCore.QItemSelectionModel.SelectionFlag.Select |
+                                                                 QtCore.QItemSelectionModel.SelectionFlag.Rows)
+                    self.programmatic_select = False
 
             if action == 'active_select':
                 self.move_to_trash_action.setEnabled(False)
