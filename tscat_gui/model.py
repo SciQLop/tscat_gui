@@ -1,5 +1,6 @@
 import abc
 import datetime as dt
+import pickle
 import os
 import tempfile
 from typing import Any, List, Optional, cast, Union, Sequence
@@ -9,6 +10,7 @@ from PySide6 import QtCore
 import tscat
 
 from .utils.helper import get_entity_from_uuid_safe
+from .undo import AddEventsToCatalogue
 from .state import AppState
 
 UUIDRole = QtCore.Qt.UserRole + 1  # type: ignore
@@ -71,7 +73,7 @@ class _Catalogue(_Item):
         return self._uuid
 
     def flags(self):
-        return super().flags() | QtCore.Qt.ItemIsDragEnabled  # type: ignore
+        return super().flags() | QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsDropEnabled  # type: ignore
 
 
 def _get_catalogues(parent, removed_items: bool) -> List[_Catalogue]:
@@ -113,6 +115,9 @@ class _Root(_Item):
     def trash_node(self):
         return self._items[-1]
 
+    def text(self) -> str:
+        return "Root"
+
     # def item_from_uuid(self, uuid: str):
     #     for item in self.items + self.items[-1].items:
     #         if type(item) is _Catalogue and item.uuid() == uuid:
@@ -121,10 +126,11 @@ class _Root(_Item):
 
 
 class CatalogueModel(QtCore.QAbstractItemModel):
-    def __init__(self, parent=None):
+    def __init__(self, state: AppState, parent=None):
         super().__init__(parent)
 
         self._root = _Root()
+        self.state = state
 
     def reset(self):
         self.beginResetModel()
@@ -222,6 +228,31 @@ class CatalogueModel(QtCore.QAbstractItemModel):
         mime_data.setUrls([path_url])
         return mime_data
 
+    def supportedDragActions(self) -> QtCore.Qt.DropAction:
+        return QtCore.Qt.DropAction.CopyAction
+
+    def canDropMimeData(self, data: QtCore.QMimeData, action: QtCore.Qt.DropAction,
+                        row: int, column: int,
+                        parent: Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex]) -> bool:
+        if not data.hasFormat('application/x-tscat-event-uuid-list'):
+            return False
+        return True
+
+    def dropMimeData(self, data: QtCore.QMimeData, action: QtCore.Qt.DropAction,
+                     row: int, column: int,
+                     parent: Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex]) -> bool:
+        if not self.canDropMimeData(data, action, row, column, parent):
+            return False
+
+        if action == QtCore.Qt.DropAction.IgnoreAction:
+            return True
+
+        self.state.push_undo_command(AddEventsToCatalogue,
+                                     parent.data(UUIDRole),
+                                     pickle.loads(data.data('application/x-tscat-event-uuid-list')))  # type: ignore
+
+        return True
+
 
 class EventModel(QtCore.QAbstractTableModel):
     _columns = ['start', 'stop', 'author', 'tags', 'products']
@@ -249,6 +280,11 @@ class EventModel(QtCore.QAbstractTableModel):
 
     def rowCount(self, parent: Optional[Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex]] = None) -> int:
         return len(self.events)
+
+    def flags(self, index: QtCore.QModelIndex) -> QtCore.Qt.ItemFlags:  # type: ignore
+        if index.isValid():
+            return super().flags(index) | QtCore.Qt.ItemIsDragEnabled  # type: ignore
+        return QtCore.Qt.NoItemFlags  # type: ignore
 
     def data(self, index: Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex],
              role: int = QtCore.Qt.DisplayRole):  # type: ignore
@@ -284,3 +320,12 @@ class EventModel(QtCore.QAbstractTableModel):
             if event.uuid == uuid:
                 return self.index(row, 0)
         return QtCore.QModelIndex()
+
+    def mimeTypes(self) -> List[str]:
+        return super().mimeTypes() + ['application/x-tscat-event-uuid-list']
+
+    def mimeData(self, indexes: Sequence[QtCore.QModelIndex]) -> QtCore.QMimeData:
+        mime_data = super().mimeData(indexes)
+        mime_data.setData('application/x-tscat-event-uuid-list',
+                          pickle.dumps([index.data(UUIDRole) for index in indexes if index.column() == 0]))
+        return mime_data

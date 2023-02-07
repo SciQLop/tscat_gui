@@ -339,3 +339,35 @@ class Import(_EntityBased):
         uuids = [c['uuid'] for c in self.import_dict["catalogues"]]
         self.state.updated("deleted", tscat._Catalogue, uuids)
         self._select(self._selected_entities())
+
+
+class AddEventsToCatalogue(_EntityBased):
+    def __init__(self, state: AppState,
+                 catalogue_uuid: str, event_uuids: List[str],
+                 parent=None):
+        super().__init__(state, parent)
+
+        self.setText(f'Add events to catalogue')
+        self.catalogue_uuid = catalogue_uuid
+
+        catalogue = get_entity_from_uuid_safe(catalogue_uuid)
+        assert isinstance(catalogue, tscat._Catalogue)
+
+        # assigned only: we want to add an event to a dynamic catalogue which is also selected by the predicate
+        existing_events_uuids = set(event.uuid for event in tscat.get_events(catalogue, assigned_only=True))
+        self.event_uuids = list(set(event_uuids) - existing_events_uuids)
+
+    def _redo(self):
+        catalogue = get_entity_from_uuid_safe(self.catalogue_uuid)
+        tscat.add_events_to_catalogue(catalogue, [get_entity_from_uuid_safe(uuid) for uuid in self.event_uuids])
+
+        self.state.updated("changed", tscat._Catalogue, [self.catalogue_uuid])
+        self._select_state.selected_catalogues = [self.catalogue_uuid]
+        self._select(self.event_uuids, type=tscat._Event)
+
+    def _undo(self):
+        catalogue = get_entity_from_uuid_safe(self.catalogue_uuid)
+        tscat.remove_events_from_catalogue(catalogue, [get_entity_from_uuid_safe(uuid) for uuid in self.event_uuids])
+
+        self.state.updated("changed", tscat._Catalogue, [self.catalogue_uuid])
+        self._select([self.catalogue_uuid], type=tscat._Catalogue)
