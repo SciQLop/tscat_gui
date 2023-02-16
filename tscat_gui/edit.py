@@ -1,5 +1,5 @@
 import datetime as dt
-from typing import Union, Dict, Optional, List, Type, cast, Any
+from typing import Union, Dict, Optional, List, Type, cast, Any, Callable
 
 from PySide6 import QtCore, QtWidgets
 
@@ -91,15 +91,31 @@ class _MultipleDifferentValuesDelegate(QtWidgets.QPushButton):
 
     def __init__(self,
                  values: _MultipleDifferentValues,
+                 reset_value_selection: Callable[[List[Any]], Any] = lambda x: x[0],
                  parent: Optional[QtWidgets.QWidget] = None):
         super().__init__('<multiple-values-click-to-reset>', parent)
         assert len(values) > 0
-        self.reset_value = values[0]
+
+        self.reset_value = reset_value_selection(values)
 
         self.clicked.connect(lambda x: self.editingFinished.emit())  # type: ignore
 
     def value(self) -> Any:
         return self.reset_value
+
+
+class _MultipleDifferentValuesDelegateMin(_MultipleDifferentValuesDelegate):
+    def __init__(self,
+                 values: _MultipleDifferentValues,
+                 parent: Optional[QtWidgets.QWidget] = None):
+        super().__init__(values, min, parent)
+
+
+class _MultipleDifferentValuesDelegateMax(_MultipleDifferentValuesDelegate):
+    def __init__(self,
+                 values: _MultipleDifferentValues,
+                 parent: Optional[QtWidgets.QWidget] = None):
+        super().__init__(values, max, parent)
 
 
 _type_name = {
@@ -160,7 +176,12 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
                        IntDelegate, StrDelegate, FloatDelegate,
                        EditableKeywordListWidget, BoolDelegate, DateTimeDelegate]]
             if isinstance(value, _MultipleDifferentValues):
-                cls = _MultipleDifferentValuesDelegate
+                if attr == 'start':
+                    cls = _MultipleDifferentValuesDelegateMin
+                elif attr == 'stop':
+                    cls = _MultipleDifferentValuesDelegateMax
+                else:
+                    cls = _MultipleDifferentValuesDelegate
             elif attr in _delegate_widget_class_factory:
                 cls = _delegate_widget_class_factory[attr]
             else:
