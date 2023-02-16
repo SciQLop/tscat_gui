@@ -10,18 +10,30 @@ from .utils.editable_label import EditableLabel
 from .utils.helper import get_entity_from_uuid_safe, AttributeNameValidator, IntDelegate, FloatDelegate, \
     DateTimeDelegate, StrDelegate, BoolDelegate
 
-from .undo import NewAttribute, RenameAttribute, DeleteAttribute, SetAttributeValue
+from .metadata import catalogue_meta_data
 from .state import AppState
+from .undo import NewAttribute, RenameAttribute, DeleteAttribute, SetAttributeValue
 
 from .predicate import SimplePredicateEditDialog
 
 
-class _UuidLabelDelegate(QtWidgets.QLabel):
+class _UuidLabelDelegate(QtWidgets.QWidget):
     editingFinished = QtCore.Signal()  # never emitted
 
     def __init__(self, value: str, parent: Optional[QtWidgets.QWidget] = None):
-        super().__init__(value, parent)
-        self.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)  # type: ignore
+        super().__init__(parent)
+
+        label = QtWidgets.QLabel(value, self)
+        label.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)  # type: ignore
+        layout = QtWidgets.QHBoxLayout(self)
+        layout.addWidget(label)
+        layout.addStretch()
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+
+
+class _ReadOnlyString(str):
+    pass
 
 
 class _PredicateDelegate(QtWidgets.QWidget):
@@ -77,6 +89,7 @@ _delegate_widget_class_factory = {
     'uuid': _UuidLabelDelegate,
     'predicate': _PredicateDelegate,
 
+    _ReadOnlyString: _UuidLabelDelegate,
     int: IntDelegate,
     str: StrDelegate,
     float: FloatDelegate,
@@ -153,7 +166,7 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
         self._layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self._layout)
 
-    def setup(self, values: Dict):
+    def setup_values(self, values: Dict):
         # clear layout, destroy all widgets
         while True:
             item = self._layout.takeAt(0)
@@ -173,8 +186,9 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
             value = values[attr]
 
             cls: Type[Union[_MultipleDifferentValuesDelegate, _UuidLabelDelegate, _PredicateDelegate,
-                       IntDelegate, StrDelegate, FloatDelegate,
-                       EditableKeywordListWidget, BoolDelegate, DateTimeDelegate]]
+                            IntDelegate, StrDelegate, FloatDelegate,
+                            EditableKeywordListWidget, BoolDelegate, DateTimeDelegate]]
+
             if isinstance(value, _MultipleDifferentValues):
                 if attr == 'start':
                     cls = _MultipleDifferentValuesDelegateMin
@@ -189,7 +203,8 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
 
             widget = cls(value)
             # the editingFinished-signal is not seen by mypy coming from PySide6
-            widget.editingFinished.connect(lambda w=widget, a=attr: self._editing_finished(a, w.value()))  # type: ignore
+            widget.editingFinished.connect(lambda w=widget, a=attr:  # type: ignore
+                                           self._editing_finished(a, w.value()))
 
             # special case for UUIDs - read-only
             if attr == 'uuid':
@@ -226,7 +241,7 @@ class FixedAttributesGroupBox(AttributesGroupBox):
                 else:
                     values[attr] = value
 
-        super().setup(values)
+        super().setup_values(values)
 
 
 class CustomAttributesGroupBox(AttributesGroupBox):
@@ -249,9 +264,8 @@ class CustomAttributesGroupBox(AttributesGroupBox):
         self.all_attribute_names: List[str] = []
         self.setup()
 
-    def setup(self) -> None:  # type: ignore
-        if len(self.uuids) != 1:
-            return
+    def setup(self) -> None:  # typing: ignore
+        assert len(self.uuids) == 1
 
         entity = get_entity_from_uuid_safe(self.uuids[0])
         self.all_attribute_names = list(entity.variable_attributes().keys()) + \
@@ -262,7 +276,7 @@ class CustomAttributesGroupBox(AttributesGroupBox):
         for attr in attributes:
             values[attr] = entity.__dict__[attr]
 
-        super().setup(values)
+        super().setup_values(values)
 
         layout = cast(QtWidgets.QGridLayout, self.layout())
 
@@ -324,6 +338,29 @@ class CustomAttributesGroupBox(AttributesGroupBox):
             self.attribute_name_labels[text].setStyleSheet('color: red')
 
 
+class CatalogueMetaDataGroupBox(AttributesGroupBox):
+    def __init__(self,
+                 uuids: List[str],
+                 state: AppState,
+                 parent: Optional[QtWidgets.QWidget] = None):
+        super().__init__("Catalogue(s) information", uuids, state, parent)
+
+        self.setup()
+
+    def setup(self) -> None:
+        values = {}
+
+        catalogues = [entity
+                      for entity in map(get_entity_from_uuid_safe, self.uuids)
+                      if isinstance(entity, tscat._Catalogue)]
+
+        for k, value_func in catalogue_meta_data.items():
+            value = value_func(catalogues)
+            values[k] = _ReadOnlyString(value)
+
+        super().setup_values(values)
+
+
 class _EntityEditWidget(QtWidgets.QWidget):
     def __init__(self, uuids: List[str], state: AppState, parent=None) -> None:
         super().__init__(parent)
@@ -332,6 +369,15 @@ class _EntityEditWidget(QtWidgets.QWidget):
         layout.setContentsMargins(5, 5, 5, 5)
 
         if len(uuids) >= 1:
+            catalogue_uuids = []
+            for entity in map(get_entity_from_uuid_safe, uuids):
+                if isinstance(entity, tscat._Catalogue):
+                    catalogue_uuids.append(entity.uuid)
+
+            if catalogue_uuids:
+                self.meta_data = CatalogueMetaDataGroupBox(catalogue_uuids, state)
+                layout.addWidget(self.meta_data)
+
             self.fixed_attributes = FixedAttributesGroupBox(uuids, state)
             layout.addWidget(self.fixed_attributes)
 

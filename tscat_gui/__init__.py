@@ -4,10 +4,9 @@ __author__ = """Patrick Boettcher"""
 __email__ = 'p@yai.se'
 __version__ = '0.2.0'
 
-from PySide6 import QtWidgets, QtGui
-from PySide6 import QtCore
+from PySide6 import QtWidgets, QtGui, QtCore
 
-from typing import Union, Sequence, Optional, Type
+from typing import Union, Sequence, Type
 import datetime as dt
 from pathlib import Path
 import os
