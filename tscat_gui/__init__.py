@@ -4,12 +4,12 @@ __author__ = """Patrick Boettcher"""
 __email__ = 'p@yai.se'
 __version__ = '0.2.0'
 
-from PySide6 import QtWidgets, QtGui, QtCore
-
-from typing import Union, Sequence, Type
 import datetime as dt
-from pathlib import Path
 import os
+from pathlib import Path
+from typing import Union, Sequence, Type, cast
+
+from PySide6 import QtWidgets, QtGui, QtCore
 
 import tscat
 
@@ -233,10 +233,57 @@ class TSCatGUI(QtWidgets.QWidget):
         undo_action.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowBack))
         undo_action.setShortcut(QtCore.Qt.CTRL | QtCore.Qt.Key_Z)
         toolbar.addAction(undo_action)
+        undo_toolbar_button = cast(QtWidgets.QToolButton, toolbar.widgetForAction(undo_action))
+        undo_toolbar_button.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
 
         redo_action.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowForward))
         redo_action.setShortcut(QtCore.Qt.CTRL | QtCore.Qt.SHIFT | QtCore.Qt.Key_Z)
         toolbar.addAction(redo_action)
+        redo_toolbar_button = cast(QtWidgets.QToolButton, toolbar.widgetForAction(redo_action))
+        redo_toolbar_button.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
+
+        def undo_redo_index_changed(index: int) -> None:
+            def __create_action_list_menu(index_range: range,
+                                          parent: QtWidgets.QToolButton,
+                                          index_inc: int,
+                                          more_items: bool,
+                                          more_items_text: str) -> None:
+
+                menu = QtWidgets.QMenu(parent)
+                for i in index_range:
+                    action = QtGui.QAction(f'{self.state.undo_stack().command(i).text()}', menu)
+                    action.triggered[bool].connect(lambda state, _i=i, inc=index_inc:  # type: ignore
+                                                   self.state.undo_stack().setIndex(_i + inc))
+                    menu.addAction(action)
+
+                if more_items:
+                    more = QtGui.QAction(more_items_text, menu)
+                    more.setEnabled(False)
+                    menu.addAction(more)
+
+                parent.setMenu(menu)
+
+            max_action_count = 10
+
+            first_index = max(0, index - max_action_count)
+
+            __create_action_list_menu(
+                range(index - 1, first_index - 1, -1),
+                undo_toolbar_button,
+                0,
+                first_index != 0,
+                f'{first_index} more undo actions')
+
+            last_index = min(self.state.undo_stack().count(), index + max_action_count)
+
+            __create_action_list_menu(
+                range(index, last_index),
+                redo_toolbar_button,
+                1,
+                last_index != self.state.undo_stack().count(),
+                f'{self.state.undo_stack().count() - last_index} more redo actions')
+
+        self.state.undo_stack().indexChanged.connect(undo_redo_index_changed)
 
         toolbar.addSeparator()
 

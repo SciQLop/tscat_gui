@@ -41,6 +41,9 @@ class AppState(QtCore.QObject):
     def select_state(self) -> SelectState:
         return copy.deepcopy(self._select_state)
 
+    def undo_stack(self) -> QtGui.QUndoStack:
+        return self._undo_stack
+
     def updated(self, action: str, ty: Union[Type[tscat._Catalogue], Type[tscat._Event]],
                 uuids: List[str]) -> None:
         if action == 'active_select':
