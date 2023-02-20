@@ -66,6 +66,8 @@ class TSCatGUI(QtWidgets.QWidget):
         self.events_view.setModel(self.events_sort_model)
         self.events_view.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
         self.events_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.events_view.setDragEnabled(True)
+        self.events_view.setDragDropMode(QtWidgets.QTreeView.DragDropMode.DragOnly)
 
         self.programmatic_select = False
 
@@ -76,7 +78,6 @@ class TSCatGUI(QtWidgets.QWidget):
             uuids = [index.data(UUIDRole) for index in self.events_view.selectedIndexes() if index.column() == 0]
             self.state.updated('active_select', tscat._Event, uuids)
 
-
         self.events_view.selectionModel().selectionChanged.connect(current_event_changed,
                                                                    type=QtCore.Qt.DirectConnection)
 
@@ -86,12 +87,14 @@ class TSCatGUI(QtWidgets.QWidget):
         self.splitter_right.addWidget(self.events_view)
         self.splitter_right.addWidget(self.edit_view)
 
-        self.catalogue_model = CatalogueModel(self)
+        self.catalogue_model = CatalogueModel(self.state, self)
 
         self.catalogues_view = QtWidgets.QTreeView()
         self.catalogues_view.setMinimumSize(300, 900)
         self.catalogues_view.setDragEnabled(True)
-        self.catalogues_view.setDragDropMode(QtWidgets.QTreeView.DragDropMode.DragOnly)
+        self.catalogues_view.setDragDropMode(QtWidgets.QTreeView.DragDropMode.DragDrop)
+        self.catalogues_view.setAcceptDrops(True)
+        self.catalogues_view.setDropIndicatorShown(True)
         self.catalogues_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
 
         self.catalogue_sort_filter_model = _TrashAlwaysTopOrBottomSortFilterModel()
