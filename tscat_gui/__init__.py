@@ -7,7 +7,7 @@ __version__ = '0.2.0'
 import datetime as dt
 import os
 from pathlib import Path
-from typing import Union, Sequence, Type, cast
+from typing import Union, Sequence, Type, cast, no_type_check
 
 from PySide6 import QtWidgets, QtGui, QtCore
 
@@ -46,13 +46,173 @@ class TSCatGUI(QtWidgets.QWidget):
     events_changed = QtCore.Signal(list)
     catalogues_changed = QtCore.Signal(list)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
 
         self.state = AppState()
 
-        self.state.state_changed.connect(self._external_signal_emission)
+        # used a state-variable to differentiate user-induced selections of entities vs programmatically ones
+        # needs direct-connected signal to work properly
+        self.programmatic_select = False
 
+        self.__setup_ui()
+
+        self.state.state_changed.connect(self._external_signal_emission)
+        self.state.state_changed.connect(self.__state_changed)
+
+    def __state_changed(self, action: str, type: Union[Type[tscat._Catalogue], Type[tscat._Event]],
+                        uuids: Sequence[str]) -> None:
+        if action in ['changed', 'moved', 'inserted', 'deleted', 'active_select', 'passive_select']:
+            if type == tscat._Catalogue:
+                if action not in ['active_select', 'passive_select']:
+                    self.catalogue_model.reset()
+
+                indexes = list(map(self.catalogue_model.index_from_uuid, uuids))
+                indexes = list(map(self.catalogue_sort_filter_model.mapFromSource, indexes))
+                self.programmatic_select = True
+                self.catalogues_view.clearSelection()
+                for index in indexes:
+                    self.catalogues_view.selectionModel().select(index,
+                                                                 QtCore.QItemSelectionModel.SelectionFlag.Select)
+                self.programmatic_select = False
+            else:
+                if action not in ['active_select', 'passive_select']:
+                    self.events_model.reset()
+
+                indexes = list(map(self.events_model.index_from_uuid, uuids))
+                indexes = list(map(self.events_sort_model.mapFromSource, indexes))
+                self.programmatic_select = True
+                self.events_view.clearSelection()
+                for index in indexes:
+                    self.events_view.selectionModel().select(index,
+                                                             QtCore.QItemSelectionModel.SelectionFlag.Select |
+                                                             QtCore.QItemSelectionModel.SelectionFlag.Rows)
+                self.programmatic_select = False
+
+        if action == 'active_select':
+            self.move_to_trash_action.setEnabled(False)
+            self.restore_from_trash_action.setEnabled(False)
+            self.delete_action.setEnabled(False)
+            self.new_event_action.setEnabled(False)
+            self.export_action.setEnabled(False)
+
+            if uuids:
+                if len(uuids) == 1:
+                    self.new_event_action.setEnabled(True)
+
+                enable_restore = False
+                enable_move_to_trash = False
+                for entity in map(get_entity_from_uuid_safe, uuids):
+                    if entity.is_removed():
+                        enable_restore |= True
+                    else:
+                        enable_move_to_trash |= True
+
+                self.restore_from_trash_action.setEnabled(enable_restore)
+                self.move_to_trash_action.setEnabled(enable_move_to_trash)
+                self.delete_action.setEnabled(True)
+                self.export_action.setEnabled(True)
+
+    def __current_event_changed(self, _: QtCore.QModelIndex, __: QtCore.QModelIndex) -> None:
+        if not self.programmatic_select:
+            uuids = [index.data(UUIDRole) for index in self.events_view.selectedIndexes() if index.column() == 0]
+            self.state.updated('active_select', tscat._Event, uuids)
+
+    def __catalogue_selection_changed(self, _: QtCore.QItemSelection, __: QtCore.QItemSelection) -> None:
+        if not self.programmatic_select:
+            uuids = [index.data(UUIDRole) for index in self.catalogues_view.selectedIndexes()]
+            self.state.updated('active_select', tscat._Catalogue, uuids)
+
+    def __create_undo_redo_action_menu_on_toolbutton(self,
+                                                     index_range: range,
+                                                     toolbutton: QtWidgets.QToolButton,
+                                                     index_inc: int,
+                                                     more_items: bool,
+                                                     more_items_text: str) -> None:
+
+        menu = QtWidgets.QMenu(toolbutton)
+        for i in index_range:
+            action = QtGui.QAction(f'{self.state.undo_stack().command(i).text()}', menu)
+            action.triggered[bool].connect(lambda state, _i=i, inc=index_inc:  # type: ignore
+                                           self.state.undo_stack().setIndex(_i + inc))
+            menu.addAction(action)
+
+        if more_items:
+            more = QtGui.QAction(more_items_text, menu)
+            more.setEnabled(False)
+            menu.addAction(more)
+
+        toolbutton.setMenu(menu)
+
+    def __undo_redo_index_changed(self, index: int) -> None:
+        max_action_count = 10
+
+        first_index = max(0, index - max_action_count)
+        self.__create_undo_redo_action_menu_on_toolbutton(
+            range(index - 1, first_index - 1, -1),
+            self.undo_toolbar_button, 0, first_index != 0,
+            f'{first_index} more undo actions')
+
+        last_index = min(self.state.undo_stack().count(), index + max_action_count)
+        self.__create_undo_redo_action_menu_on_toolbutton(
+            range(index, last_index), self.redo_toolbar_button, 1,
+            last_index != self.state.undo_stack().count(),
+            f'{self.state.undo_stack().count() - last_index} more redo actions')
+
+    def __refresh_current_selection(self) -> None:
+        current_selection = self.state.select_state()
+        self.catalogue_model.reset()
+        self.events_model.reset()
+
+        if current_selection.type == tscat._Event:
+            self.state.updated('passive_select', tscat._Catalogue, current_selection.selected_catalogues)
+        self.state.updated('active_select', current_selection.type, current_selection.selected)
+
+    def __import_from_file(self) -> None:
+        filename, filetype = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Select a catalogue file to be imported",
+            str(Path.home()),
+            "JSON Document (*.json)")
+        if filename != '':
+            try:
+                with open(filename) as f:
+                    data = f.read()
+                    import_dict = tscat.canonicalize_json_import(data)
+                    self.state.push_undo_command(Import, filename, import_dict)
+            except Exception as e:
+                QtWidgets.QMessageBox.critical(self,
+                                               "Catalogue import",
+                                               f"The selected file could not be imported: '{e}'.")
+
+    def __export_to_file(self) -> None:
+        filename, filetype = QtWidgets.QFileDialog.getSaveFileName(
+            self,
+            "Specify the filename for exporting the selected catalogues",
+            str(Path.home()),
+            "JSON Document (*.json)")
+        if filename != '':
+            split_filename = os.path.splitext(filename)
+            if split_filename[1] != '.json':
+                filename = split_filename[0] + '.json'
+
+            try:
+                with open(filename, 'w+') as f:
+                    catalogues = [get_entity_from_uuid_safe(uuid)
+                                  for uuid in self.state.select_state().selected_catalogues]
+                    json = tscat.export_json(catalogues)  # type: ignore
+                    f.write(json)
+                QtWidgets.QMessageBox.information(self,
+                                                  "Catalogue export",
+                                                  "The selected catalogues have been successfully exported")
+            except Exception as e:
+                QtWidgets.QMessageBox.critical(
+                    self,
+                    "Catalogue export",
+                    f"The selected catalogues could not be exported to {filename} due to '{e}'.")
+
+    def __setup_ui(self) -> None:
+        # Event Model and View
         self.events_model = EventModel(self.state, self)
         self.events_sort_model = QtCore.QSortFilterProxyModel()
         self.events_sort_model.setSourceModel(self.events_model)
@@ -64,28 +224,21 @@ class TSCatGUI(QtWidgets.QWidget):
 
         self.events_view.setModel(self.events_sort_model)
         self.events_view.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
-        self.events_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.events_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)  # type: ignore
         self.events_view.setDragEnabled(True)
         self.events_view.setDragDropMode(QtWidgets.QTreeView.DragDropMode.DragOnly)
+        self.events_view.selectionModel().selectionChanged.connect(self.__current_event_changed,  # type: ignore
+                                                                   type=QtCore.Qt.DirectConnection)  # type: ignore
 
-        self.programmatic_select = False
-
-        def current_event_changed(_: QtCore.QModelIndex, __: QtCore.QModelIndex):
-            if self.programmatic_select:
-                return
-
-            uuids = [index.data(UUIDRole) for index in self.events_view.selectedIndexes() if index.column() == 0]
-            self.state.updated('active_select', tscat._Event, uuids)
-
-        self.events_view.selectionModel().selectionChanged.connect(current_event_changed,
-                                                                   type=QtCore.Qt.DirectConnection)
-
+        # Edit View
         self.edit_view = EntityEditView(self.state, self)
 
-        self.splitter_right = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)
+        # Event/Edit Vertial Splitter
+        self.splitter_right = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)  # type: ignore
         self.splitter_right.addWidget(self.events_view)
         self.splitter_right.addWidget(self.edit_view)
 
+        # Catalogue Model and View
         self.catalogue_model = CatalogueModel(self.state, self)
 
         self.catalogues_view = QtWidgets.QTreeView()
@@ -94,89 +247,29 @@ class TSCatGUI(QtWidgets.QWidget):
         self.catalogues_view.setDragDropMode(QtWidgets.QTreeView.DragDropMode.DragDrop)
         self.catalogues_view.setAcceptDrops(True)
         self.catalogues_view.setDropIndicatorShown(True)
-        self.catalogues_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.catalogues_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)  # type: ignore
 
         self.catalogue_sort_filter_model = _TrashAlwaysTopOrBottomSortFilterModel()
         self.catalogue_sort_filter_model.setSourceModel(self.catalogue_model)
         self.catalogue_sort_filter_model.setRecursiveFilteringEnabled(True)
-        self.catalogue_sort_filter_model.setFilterCaseSensitivity(QtCore.Qt.CaseSensitivity.CaseInsensitive)
+        self.catalogue_sort_filter_model.setFilterCaseSensitivity(QtCore.Qt.CaseSensitivity.CaseInsensitive)  # type: ignore
 
         self.catalogues_view.setModel(self.catalogue_sort_filter_model)
         self.catalogues_view.setSortingEnabled(True)
-        self.catalogues_view.sortByColumn(0, QtCore.Qt.SortOrder.AscendingOrder)
+        self.catalogues_view.sortByColumn(0, QtCore.Qt.SortOrder.AscendingOrder)  # type: ignore
 
-        self.catalogues_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.catalogues_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)  # type: ignore
 
-        def catalogue_selection_changed(_: QtCore.QItemSelection, __: QtCore.QItemSelection) -> None:
-            if self.programmatic_select:
-                return
+        self.catalogues_view.selectionModel().selectionChanged.connect(self.__catalogue_selection_changed,  # type: ignore
+                                                                       type=QtCore.Qt.DirectConnection)  # type: ignore
 
-            uuids = [index.data(UUIDRole) for index in self.catalogues_view.selectedIndexes()]
-            self.state.updated('active_select', tscat._Catalogue, uuids)
-
-        self.catalogues_view.selectionModel().selectionChanged.connect(catalogue_selection_changed,
-                                                                       type=QtCore.Qt.DirectConnection)
-
-        def state_changed(action: str, type: Union[Type[tscat._Catalogue], Type[tscat._Event]],
-                          uuids: Sequence[str]) -> None:
-            if action in ['changed', 'moved', 'inserted', 'deleted', 'active_select', 'passive_select']:
-                if type == tscat._Catalogue:
-                    if action not in ['active_select', 'passive_select']:
-                        self.catalogue_model.reset()
-
-                    indexes = list(map(self.catalogue_model.index_from_uuid, uuids))
-                    indexes = list(map(self.catalogue_sort_filter_model.mapFromSource, indexes))
-                    self.programmatic_select = True
-                    self.catalogues_view.clearSelection()
-                    for index in indexes:
-                        self.catalogues_view.selectionModel().select(index,
-                                                                     QtCore.QItemSelectionModel.SelectionFlag.Select)
-                    self.programmatic_select = False
-                else:
-                    if action not in ['active_select', 'passive_select']:
-                        self.events_model.reset()
-
-                    indexes = list(map(self.events_model.index_from_uuid, uuids))
-                    indexes = list(map(self.events_sort_model.mapFromSource, indexes))
-                    self.programmatic_select = True
-                    self.events_view.clearSelection()
-                    for index in indexes:
-                        self.events_view.selectionModel().select(index,
-                                                                 QtCore.QItemSelectionModel.SelectionFlag.Select |
-                                                                 QtCore.QItemSelectionModel.SelectionFlag.Rows)
-                    self.programmatic_select = False
-
-            if action == 'active_select':
-                self.move_to_trash_action.setEnabled(False)
-                self.restore_from_trash_action.setEnabled(False)
-                self.delete_action.setEnabled(False)
-                self.new_event_action.setEnabled(False)
-                self.export_action.setEnabled(False)
-
-                if uuids:
-                    if len(uuids) == 1:
-                        self.new_event_action.setEnabled(True)
-
-                    enable_restore = False
-                    enable_move_to_trash = False
-                    for entity in map(get_entity_from_uuid_safe, uuids):
-                        if entity.is_removed():
-                            enable_restore |= True
-                        else:
-                            enable_move_to_trash |= True
-
-                    self.restore_from_trash_action.setEnabled(enable_restore)
-                    self.move_to_trash_action.setEnabled(enable_move_to_trash)
-                    self.delete_action.setEnabled(True)
-                    self.export_action.setEnabled(True)
-
-        self.state.state_changed.connect(state_changed)
-
+        # Catalogue Layout and Filter
         hlayout = QtWidgets.QHBoxLayout()
         hlayout.setContentsMargins(0, 0, 0, 0)
         hlayout.addWidget(QtWidgets.QLabel('Filter:'))
+
         catalogue_filter = QtWidgets.QLineEdit()
-        catalogue_filter.textChanged.connect(lambda t: self.catalogue_sort_filter_model.setFilterRegularExpression(t))
+        catalogue_filter.textChanged.connect(lambda t: self.catalogue_sort_filter_model.setFilterRegularExpression(t))  # type: ignore
 
         hlayout.addWidget(catalogue_filter)
 
@@ -188,41 +281,35 @@ class TSCatGUI(QtWidgets.QWidget):
         left_widget = QtWidgets.QWidget()
         left_widget.setLayout(layout)
 
-        splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
+        # MainWindow Catalogue/Right Splitter - Horizonal
+        splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)  # type: ignore
         splitter.addWidget(left_widget)
         splitter.addWidget(self.splitter_right)
 
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
 
+        # Toolbar
         toolbar = QtWidgets.QToolBar()
 
-        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder),
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder),  # type: ignore
                                "Create Catalogue", self)
-
-        def new_catalogue():
-            self.state.push_undo_command(NewCatalogue)
-
-        action.triggered.connect(new_catalogue)
+        action.triggered.connect(lambda: self.state.push_undo_command(NewCatalogue))  # type: ignore
         toolbar.addAction(action)
 
-        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_FileIcon),
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_FileIcon),  # type: ignore
                                "Create Event", self)
-
-        def new_event():
-            self.state.push_undo_command(NewEvent)
-
-        action.triggered.connect(new_event)
+        action.triggered.connect(lambda: self.state.push_undo_command(NewEvent))  # type: ignore
         action.setEnabled(False)
         toolbar.addAction(action)
 
         self.new_event_action = action
 
         toolbar.addSeparator()
-        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton), "Save To Disk",
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton), "Save To Disk",  # type: ignore
                                self)
 
-        action.triggered.connect(self.save)
+        action.triggered.connect(self.save)  # type: ignore
         toolbar.addAction(action)
         action.setEnabled(False)
         self.state.undo_stack_clean_changed.connect(lambda state, a=action: a.setEnabled(not state))
@@ -230,173 +317,68 @@ class TSCatGUI(QtWidgets.QWidget):
         toolbar.addSeparator()
         undo_action, redo_action = self.state.create_undo_redo_action()
 
-        undo_action.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowBack))
-        undo_action.setShortcut(QtCore.Qt.CTRL | QtCore.Qt.Key_Z)
+        undo_action.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowBack))  # type: ignore
+        undo_action.setShortcut(QtCore.Qt.CTRL | QtCore.Qt.Key_Z)  # type: ignore
         toolbar.addAction(undo_action)
-        undo_toolbar_button = cast(QtWidgets.QToolButton, toolbar.widgetForAction(undo_action))
-        undo_toolbar_button.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
+        self.undo_toolbar_button = cast(QtWidgets.QToolButton, toolbar.widgetForAction(undo_action))
+        self.undo_toolbar_button.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)  # type: ignore
 
-        redo_action.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowForward))
-        redo_action.setShortcut(QtCore.Qt.CTRL | QtCore.Qt.SHIFT | QtCore.Qt.Key_Z)
+        redo_action.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowForward))  # type: ignore
+        redo_action.setShortcut(QtCore.Qt.CTRL | QtCore.Qt.SHIFT | QtCore.Qt.Key_Z)  # type: ignore
         toolbar.addAction(redo_action)
-        redo_toolbar_button = cast(QtWidgets.QToolButton, toolbar.widgetForAction(redo_action))
-        redo_toolbar_button.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
+        self.redo_toolbar_button = cast(QtWidgets.QToolButton, toolbar.widgetForAction(redo_action))
+        self.redo_toolbar_button.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)  # type: ignore
 
-        def undo_redo_index_changed(index: int) -> None:
-            def __create_action_list_menu(index_range: range,
-                                          parent: QtWidgets.QToolButton,
-                                          index_inc: int,
-                                          more_items: bool,
-                                          more_items_text: str) -> None:
-
-                menu = QtWidgets.QMenu(parent)
-                for i in index_range:
-                    action = QtGui.QAction(f'{self.state.undo_stack().command(i).text()}', menu)
-                    action.triggered[bool].connect(lambda state, _i=i, inc=index_inc:  # type: ignore
-                                                   self.state.undo_stack().setIndex(_i + inc))
-                    menu.addAction(action)
-
-                if more_items:
-                    more = QtGui.QAction(more_items_text, menu)
-                    more.setEnabled(False)
-                    menu.addAction(more)
-
-                parent.setMenu(menu)
-
-            max_action_count = 10
-
-            first_index = max(0, index - max_action_count)
-
-            __create_action_list_menu(
-                range(index - 1, first_index - 1, -1),
-                undo_toolbar_button,
-                0,
-                first_index != 0,
-                f'{first_index} more undo actions')
-
-            last_index = min(self.state.undo_stack().count(), index + max_action_count)
-
-            __create_action_list_menu(
-                range(index, last_index),
-                redo_toolbar_button,
-                1,
-                last_index != self.state.undo_stack().count(),
-                f'{self.state.undo_stack().count() - last_index} more redo actions')
-
-        self.state.undo_stack().indexChanged.connect(undo_redo_index_changed)
+        self.state.undo_stack().indexChanged.connect(self.__undo_redo_index_changed)  # type: ignore
 
         toolbar.addSeparator()
 
-        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_TrashIcon), "Move to Trash", self)
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_TrashIcon), "Move to Trash", self)  # type: ignore
 
-        def trash():
-            self.state.push_undo_command(MoveEntityToTrash)
-
-        action.triggered.connect(trash)
+        action.triggered.connect(lambda: self.state.push_undo_command(MoveEntityToTrash))  # type: ignore
         action.setEnabled(False)
         toolbar.addAction(action)
         self.move_to_trash_action = action
 
-        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogResetButton),
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogResetButton),  # type: ignore
                                "Restore from Trash", self)
 
-        def restore():
-            self.state.push_undo_command(RestoreEntityFromTrash)
-
-        action.triggered.connect(restore)
+        action.triggered.connect(lambda: self.state.push_undo_command(RestoreEntityFromTrash))  # type: ignore
         action.setEnabled(False)
         toolbar.addAction(action)
         self.restore_from_trash_action = action
 
-        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_BrowserStop), "Delete permanently",
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_BrowserStop), "Delete permanently",  # type: ignore
                                self)
 
-        def delete():
-            self.state.push_undo_command(DeletePermanently)
-
-        action.triggered.connect(delete)
+        action.triggered.connect(lambda: self.state.push_undo_command(DeletePermanently))  # type: ignore
         action.setEnabled(False)
         toolbar.addAction(action)
         self.delete_action = action
 
         toolbar.addSeparator()
 
-        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogRetryButton), "Refresh",
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogRetryButton), "Refresh",  # type: ignore
                                self)
 
-        def refresh():
-            current_selection = self.state.select_state()
-            self.catalogue_model.reset()
-            self.events_model.reset()
-
-            if current_selection.type == tscat._Event:
-                self.state.updated('passive_select', tscat._Catalogue, current_selection.selected_catalogues)
-            self.state.updated('active_select', current_selection.type, current_selection.selected)
-
-        action.triggered.connect(refresh)
+        action.triggered.connect(self.__refresh_current_selection)  # type: ignore
         toolbar.addAction(action)
 
         self.refresh_action = action
 
         toolbar.addSeparator()
 
-        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowUp), "Import Catalogue",
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowUp), "Import Catalogue",  # type: ignore
                                self)
 
-        def import_from_file():
-            filename, filetype = QtWidgets.QFileDialog.getOpenFileName(
-                self,
-                "Select a catalogue file to be imported",
-                str(Path.home()),
-                "JSON Document (*.json)")
-            if filename == '':
-                return
-
-            try:
-                with open(filename) as f:
-                    data = f.read()
-                    import_dict = tscat.canonicalize_json_import(data)
-                    self.state.push_undo_command(Import, filename, import_dict)
-            except Exception as e:
-                QtWidgets.QMessageBox.critical(self,
-                                               "Catalogue import",
-                                               f"The selected file could not be imported: '{e}'.")
-
-        action.triggered.connect(import_from_file)
+        action.triggered.connect(self.__import_from_file)  # type: ignore
         toolbar.addAction(action)
 
-        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowDown),
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowDown),  # type: ignore
                                "Export Catalogue",
                                self)
 
-        def export_to_file():
-            filename, filetype = QtWidgets.QFileDialog.getSaveFileName(
-                self,
-                "Specify the filename for exporting the selected catalogues",
-                str(Path.home()),
-                "JSON Document (*.json)")
-            if filename == '':
-                return
-            split_filename = os.path.splitext(filename)
-            if split_filename[1] != '.json':
-                filename = split_filename[0] + '.json'
-
-            try:
-                with open(filename, 'w+') as f:
-                    catalogues = [get_entity_from_uuid_safe(uuid)
-                                  for uuid in self.state.select_state().selected_catalogues]
-                    json = tscat.export_json(catalogues)
-                    f.write(json)
-                QtWidgets.QMessageBox.information(self,
-                                                  "Catalogue export",
-                                                  "The selected catalogues have been successfully exported")
-            except Exception as e:
-                QtWidgets.QMessageBox.critical(
-                    self,
-                    "Catalogue export",
-                    f"The selected catalogues could not be exported to {filename} due to '{e}'.")
-
-        action.triggered.connect(export_to_file)
+        action.triggered.connect(self.__export_to_file)  # type: ignore
         action.setEnabled(False)
         toolbar.addAction(action)
 
