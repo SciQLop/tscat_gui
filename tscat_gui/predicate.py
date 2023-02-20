@@ -301,7 +301,7 @@ class _InCatalogue(_PredicateWidget):
 
     OP_LABELS = ['is in catalogue', 'is not in catalogue']
 
-    def __init__(self, predicate: Union[InCatalogue, None], negate: bool, parent: _PredicateWidget):
+    def __init__(self, predicate: Optional[InCatalogue], negate: bool, parent: _PredicateWidget):
         super().__init__(parent)
 
         c = QtWidgets.QHBoxLayout()
@@ -317,6 +317,18 @@ class _InCatalogue(_PredicateWidget):
 
         for cat in tscat.get_catalogues(removed_items=True):
             self.catalogues.addItem(cat.name + " (in trash)", cat)
+
+        if predicate is not None:
+            for index in range(self.catalogues.count()):
+                catalogue = cast(tscat._Catalogue, self.catalogues.itemData(index))
+                if catalogue and predicate.catalogue and predicate.catalogue.uuid == catalogue.uuid:
+                    break
+            else:
+                index = -1
+
+            if index != -1:
+                self.catalogues.setCurrentIndex(index)
+
         self.catalogues.currentIndexChanged.connect(lambda: self.changed.emit())  # type: ignore
 
         c.addWidget(self.catalogues)
