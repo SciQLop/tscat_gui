@@ -368,6 +368,8 @@ class _EntityEditWidget(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(5, 5, 5, 5)
 
+        self.meta_data: Optional[CatalogueMetaDataGroupBox] = None
+
         if len(uuids) >= 1:
             catalogue_uuids = []
             for entity in map(get_entity_from_uuid_safe, uuids):
@@ -393,6 +395,8 @@ class _EntityEditWidget(QtWidgets.QWidget):
         self.setLayout(layout)
 
     def setup(self) -> None:
+        if self.meta_data:
+            self.meta_data.setup()
         if self.attributes:
             self.attributes.setup()
         self.fixed_attributes.setup()
