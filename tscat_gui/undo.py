@@ -1,37 +1,38 @@
 import abc
+from dataclasses import dataclass
+from copy import deepcopy
+import datetime as dt
+import os
+from typing import Union, Optional, Type, List, Dict
 
 from PySide6 import QtGui
 
+import tscat
 from .utils.helper import get_entity_from_uuid_safe
 from .state import AppState
 
-import os
-import tscat
-from copy import deepcopy
-
-import datetime as dt
-from typing import Union, Optional, Type, List
-from uuid import UUID
-
 
 class _EntityBased(QtGui.QUndoCommand):
-    def __init__(self, state: AppState, parent=None):
+    def __init__(self, state: AppState, parent=None) -> None:
         super().__init__(parent)
 
         self.state = state
         self._select_state = state.select_state()
 
-    def _active_entity(self) -> str:
-        assert self._select_state.active
-        return self._select_state.active
+    def _selected_entities(self) -> List[str]:
+        return self._select_state.selected
 
-    def _select(self, uuid: str, type: Optional[Union[Type[tscat._Catalogue], Type[tscat._Event]]] = None):
+    def _mapped_selected_entities(self) -> List[Union[tscat._Catalogue, tscat._Event]]:
+        return list(map(get_entity_from_uuid_safe, self._selected_entities()))
+
+    def _select(self, uuids: List[str],
+                type: Optional[Union[Type[tscat._Catalogue], Type[tscat._Event]]] = None):
         if type is None:
             type = self._select_state.type
 
         if type == tscat._Event:
-            self.state.updated('passive_select', tscat._Catalogue, self._select_state.active_catalogue)
-        self.state.updated('active_select', type, uuid)
+            self.state.updated('passive_select', tscat._Catalogue, self._select_state.selected_catalogues)
+        self.state.updated('active_select', type, uuids)
 
     def redo(self) -> None:
         self._redo()
@@ -58,18 +59,18 @@ class NewAttribute(_EntityBased):
         self.value = value
 
     def _redo(self) -> None:
-        entity = get_entity_from_uuid_safe(self._active_entity())
-        entity.__setattr__(self.name, self.value)
+        for entity in self._mapped_selected_entities():
+            entity.__setattr__(self.name, self.value)
 
-        self._select(self._active_entity())
-        self.state.updated('changed', type(entity), self._active_entity())
+        self._select(self._selected_entities())
+        self.state.updated('changed', type(entity), self._selected_entities())
 
     def _undo(self) -> None:
-        entity = get_entity_from_uuid_safe(self._active_entity())
-        entity.__delattr__(self.name)
+        for entity in self._mapped_selected_entities():
+            entity.__delattr__(self.name)
 
-        self._select(self._active_entity())
-        self.state.updated('changed', type(entity), self._active_entity())
+        self._select(self._selected_entities())
+        self.state.updated('changed', type(entity), self._selected_entities())
 
 
 class RenameAttribute(_EntityBased):
@@ -83,22 +84,22 @@ class RenameAttribute(_EntityBased):
         self.old_name = old_name
 
     def _redo(self) -> None:
-        entity = get_entity_from_uuid_safe(self._active_entity())
-        value = entity.__dict__[self.old_name]
-        entity.__delattr__(self.old_name)
-        entity.__setattr__(self.new_name, value)
+        for entity in self._mapped_selected_entities():
+            value = entity.__dict__[self.old_name]
+            entity.__delattr__(self.old_name)
+            entity.__setattr__(self.new_name, value)
 
-        self._select(self._active_entity())
-        self.state.updated('changed', type(entity), self._active_entity())
+        self._select(self._selected_entities())
+        self.state.updated('changed', type(entity), self._selected_entities())
 
     def _undo(self) -> None:
-        entity = get_entity_from_uuid_safe(self._active_entity())
-        value = entity.__dict__[self.new_name]
-        entity.__delattr__(self.new_name)
-        entity.__setattr__(self.old_name, value)
+        for entity in self._mapped_selected_entities():
+            value = entity.__dict__[self.new_name]
+            entity.__delattr__(self.new_name)
+            entity.__setattr__(self.old_name, value)
 
-        self._select(self._active_entity())
-        self.state.updated('changed', type(entity), self._active_entity())
+        self._select(self._selected_entities())
+        self.state.updated('changed', type(entity), self._selected_entities())
 
 
 class DeleteAttribute(_EntityBased):
@@ -109,22 +110,22 @@ class DeleteAttribute(_EntityBased):
         self.setText(f'Delete attribute {name} from {self._select_state.type}')
 
         self.name = name
-        entity = get_entity_from_uuid_safe(self._active_entity())
-        self.value = entity.__dict__[name]
+        self.values = [entity.__dict__[name] for entity in self._mapped_selected_entities()]
 
     def _redo(self) -> None:
-        entity = get_entity_from_uuid_safe(self._active_entity())
-        entity.__delattr__(self.name)
+        for entity in self._mapped_selected_entities():
+            entity.__delattr__(self.name)
 
-        self._select(self._active_entity())
-        self.state.updated('changed', type(entity), self._active_entity())
+        self._select(self._selected_entities())
+        entity.is_removed()
+        self.state.updated('changed', type(entity), self._selected_entities())
 
     def _undo(self) -> None:
-        entity = get_entity_from_uuid_safe(self._active_entity())
-        entity.__setattr__(self.name, self.value)
+        for entity, value in zip(self._mapped_selected_entities(), self.values):
+            entity.__setattr__(self.name, value)
 
-        self._select(self._active_entity())
-        self.state.updated('changed', type(entity), self._active_entity())
+        self._select(self._selected_entities())
+        self.state.updated('changed', type(entity), self._selected_entities())
 
 
 class SetAttributeValue(_EntityBased):
@@ -132,27 +133,25 @@ class SetAttributeValue(_EntityBased):
                  parent=None):
         super().__init__(state, parent)
 
-        entity = get_entity_from_uuid_safe(self._active_entity())
-        self.setText(f'Change {name} to {value} in {type(entity)}')
+        self.setText(f'Change {name} to {value} in {self._select_state.type}')
 
         self.name = name
-        self.previous_value = None
-        self.value = value
+        self.previous_values = [entity.__dict__[name] for entity in self._mapped_selected_entities()]
+        self.new_value = value
 
     def _redo(self) -> None:
-        entity = get_entity_from_uuid_safe(self._active_entity())
-        self.previous_value = entity.__dict__[self.name]
-        entity.__setattr__(self.name, self.value)
+        for entity in self._mapped_selected_entities():
+            entity.__setattr__(self.name, self.new_value)
 
-        self._select(self._active_entity())
-        self.state.updated('changed', type(entity), self._active_entity())
+        self._select(self._selected_entities())
+        self.state.updated('changed', type(entity), self._selected_entities())
 
     def _undo(self) -> None:
-        entity = get_entity_from_uuid_safe(self._active_entity())
-        entity.__setattr__(self.name, self.previous_value)
+        for entity, value in zip(self._mapped_selected_entities(), self.previous_values):
+            entity.__setattr__(self.name, value)
 
-        self._select(self._active_entity())
-        self.state.updated('changed', type(entity), self._active_entity())
+        self._select(self._selected_entities())
+        self.state.updated('changed', type(entity), self._selected_entities())
 
 
 class NewCatalogue(_EntityBased):
@@ -168,15 +167,15 @@ class NewCatalogue(_EntityBased):
         catalogue = tscat.create_catalogue("New Catalogue", author=os.getlogin(), uuid=self.uuid)
         self.uuid = catalogue.uuid
 
-        self.state.updated("inserted", tscat._Catalogue, catalogue.uuid)
-        self._select(catalogue.uuid, tscat._Catalogue)
+        self.state.updated("inserted", tscat._Catalogue, [catalogue.uuid])
+        self._select([catalogue.uuid], tscat._Catalogue)
 
     def _undo(self):
         catalogue = get_entity_from_uuid_safe(self.uuid)
         catalogue.remove(permanently=True)
 
-        self.state.updated("deleted", tscat._Catalogue, catalogue.uuid)
-        self._select(self._active_entity())
+        self.state.updated("deleted", tscat._Catalogue, [catalogue.uuid])
+        self._select(self._selected_entities())
 
 
 class NewEvent(_EntityBased):
@@ -191,18 +190,20 @@ class NewEvent(_EntityBased):
         event = tscat.create_event(dt.datetime.now(), dt.datetime.now(), author=os.getlogin(), uuid=self.uuid)
         self.uuid = event.uuid
 
-        catalogue = get_entity_from_uuid_safe(self._select_state.active_catalogue)
+        assert len(self._select_state.selected_catalogues) == 1
+
+        catalogue = get_entity_from_uuid_safe(self._select_state.active_catalogues[0])
         tscat.add_events_to_catalogue(catalogue, event)
 
         self.state.updated("inserted", tscat._Event, event.uuid)
-        self._select(event.uuid, tscat._Event)
+        self._select([event.uuid], tscat._Event)
 
     def _undo(self):
         event = get_entity_from_uuid_safe(self.uuid)
         event.remove(permanently=True)
 
-        self.state.updated("deleted", tscat._Event, event.uuid)
-        self._select(self._active_entity())
+        self.state.updated("deleted", tscat._Event, [event.uuid])
+        self._select(self._selected_entities())
 
 
 class MoveRestoreTrashedEntity(_EntityBased):
@@ -210,18 +211,18 @@ class MoveRestoreTrashedEntity(_EntityBased):
         super().__init__(state, parent)
 
     def remove(self):
-        entity = get_entity_from_uuid_safe(self._active_entity())
-        entity.remove()
+        for entity in self._mapped_selected_entities():
+            entity.remove()
 
-        self.state.updated("moved", type(entity), self._active_entity())
-        self._select(self._active_entity())
+        self.state.updated("moved", type(entity), self._selected_entities())
+        self._select(self._selected_entities())
 
     def restore(self):
-        entity = get_entity_from_uuid_safe(self._active_entity())
-        entity.restore()
+        for entity in self._mapped_selected_entities():
+            entity.restore()
 
-        self.state.updated("moved", type(entity), self._active_entity())
-        self._select(self._active_entity())
+        self.state.updated("moved", type(entity), self._selected_entities())
+        self._select(self._selected_entities())
 
 
 class MoveEntityToTrash(MoveRestoreTrashedEntity):
@@ -250,52 +251,64 @@ class RestoreEntityFromTrash(MoveRestoreTrashedEntity):
         self.remove()
 
 
+@dataclass
+class _DeletedEntity:
+    type: Union[Type[tscat._Catalogue], Type[tscat._Event]]
+    in_trash: bool
+    data: Dict
+    linked_uuids: List[str]
+
+
 class DeletePermanently(_EntityBased):
     def __init__(self, state: AppState, parent=None):
         super().__init__(state, parent)
 
         self.setText(f'Delete {self._select_state.type} permanently')
 
-        self.entity_type = None
-        self.deleted_entity_data = None
-        self.entity_in_trash = None
-        self.linked_uuids: List[UUID] = []
+        self.deleted_entities: List[_DeletedEntity] = []
 
     def _redo(self):
-        entity = get_entity_from_uuid_safe(self._active_entity())
-        self.entity_type = type(entity)
-        self.entity_in_trash = entity.is_removed()
+        for entity in self._mapped_selected_entities():
+            if type(entity) == tscat._Catalogue:
+                linked_uuids = [e.uuid for e in tscat.get_events(entity, assigned_only=True)]
+            else:
+                linked_uuids = [e.uuid for e in tscat.get_catalogues(entity)]
 
-        if self.entity_type == tscat._Catalogue:
-            self.linked_uuids = [e.uuid for e in tscat.get_events(entity)]
-        else:
-            self.linked_uuids = [e.uuid for e in tscat.get_catalogues(entity)]
+            deleted_entity = _DeletedEntity(
+                type(entity),
+                entity.is_removed(),
+                entity.dump(),
+                linked_uuids)
+            self.deleted_entities.append(deleted_entity)
 
-        self.deleted_entity_data = {
-            k: entity.__dict__[k] for k in list(entity.fixed_attributes().keys()) +
-                                           list(entity.variable_attributes().keys())
-        }
+            entity.remove(permanently=True)
 
-        entity.remove(permanently=True)
-
-        self._select(None)
-        self.state.updated("deleted", self.entity_type, entity.uuid)
+        self._select([])
+        self.state.updated("deleted", type(entity), self._selected_entities())
 
     def _undo(self):
-        entity = self.entity_type(**self.deleted_entity_data)
-        if self.entity_in_trash:
-            entity.remove()
+        restored_uuids = []
+        for e in self.deleted_entities:
+            if e.type == tscat._Catalogue:
+                entity = tscat.create_catalogue(**e.data)
+            else:
+                entity = tscat.create_event(**e.data)
 
-        linked_entities = [get_entity_from_uuid_safe(uuid) for uuid in self.linked_uuids]
-        if isinstance(entity, tscat._Catalogue):
-            tscat.add_events_to_catalogue(entity, linked_entities)
-        else:
-            for c in linked_entities:
-                assert isinstance(c, tscat._Catalogue)
-                tscat.add_events_to_catalogue(c, entity)
+            if e.in_trash:
+                entity.remove()
 
-        self.state.updated("inserted", type(entity), entity.uuid)
-        self._select(entity.uuid)
+            linked_entities = [get_entity_from_uuid_safe(uuid) for uuid in e.linked_uuids]
+            if isinstance(entity, tscat._Catalogue):
+                tscat.add_events_to_catalogue(entity, linked_entities)
+            else:
+                for c in linked_entities:
+                    assert isinstance(c, tscat._Catalogue)
+                    tscat.add_events_to_catalogue(c, entity)
+
+            restored_uuids += [entity.uuid]
+
+        self.state.updated("inserted", type(entity), restored_uuids)
+        self._select(restored_uuids)
 
 
 class Import(_EntityBased):
@@ -310,10 +323,9 @@ class Import(_EntityBased):
         tscat.import_canonicalized_dict(deepcopy(self.import_dict))
 
         # select one catalogue from the import to refresh the view
-        if len(self.import_dict["catalogues"]) > 0:
-            uuid = self.import_dict["catalogues"][-1]["uuid"]
-            self.state.updated("inserted", tscat._Catalogue, uuid)
-            self._select(uuid, tscat._Catalogue)
+        uuids = [c['uuid'] for c in self.import_dict["catalogues"]]
+        self.state.updated("inserted", tscat._Catalogue, uuids)
+        self._select(uuids, tscat._Catalogue)
 
     def _undo(self):
         for event in self.import_dict["events"]:
@@ -324,7 +336,6 @@ class Import(_EntityBased):
             cat = get_entity_from_uuid_safe(catalogue["uuid"])
             cat.remove(permanently=True)
 
-        if len(self.import_dict["catalogues"]) > 0:
-            uuid = self.import_dict["catalogues"][-1]["uuid"]
-            self.state.updated("deleted", tscat._Catalogue, uuid)
-            self._select(self._active_entity())
+        uuids = [c['uuid'] for c in self.import_dict["catalogues"]]
+        self.state.updated("deleted", tscat._Catalogue, uuids)
+        self._select(self._selected_entities())

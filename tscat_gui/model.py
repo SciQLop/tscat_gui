@@ -205,18 +205,17 @@ class CatalogueModel(QtCore.QAbstractItemModel):
     def mimeData(self, indexes: Sequence[QtCore.QModelIndex]) -> QtCore.QMimeData:
         mime_data = super().mimeData(indexes)
 
-        catalogue_uuid = indexes[0].data(UUIDRole)
+        catalogues = [cast(tscat._Catalogue, get_entity_from_uuid_safe(i.data(UUIDRole))) for i in indexes]
 
         now = dt.datetime.now().isoformat()
-        catalogue = get_entity_from_uuid_safe(catalogue_uuid)
 
-        path = os.path.join(tempfile.gettempdir(), 'tscat_gui', f'{catalogue.name}-{now}-export.json')
+        name = '-and-'.join(c.name for c in catalogues)
+
+        path = os.path.join(tempfile.gettempdir(), 'tscat_gui', f'{name}-{now}-export.json')
         os.makedirs(os.path.dirname(path), exist_ok=True)
 
-        assert isinstance(catalogue, tscat._Catalogue)
-
-        json = tscat.export_json(catalogue)
         with open(path, 'w+') as f:
+            json = tscat.export_json(catalogues)
             f.write(json)
 
         path_url = QtCore.QUrl.fromLocalFile(path)
@@ -230,7 +229,7 @@ class EventModel(QtCore.QAbstractTableModel):
     def __init__(self, state: AppState, parent=None):
         super().__init__(parent)
 
-        self.catalogue_uuid = None
+        self.catalogue_uuids: List[str] = []
         self.events: List[tscat._Event] = []
 
         state.state_changed.connect(self.set_catalogue)
@@ -267,15 +266,17 @@ class EventModel(QtCore.QAbstractTableModel):
     def reset(self):
         self.beginResetModel()
         self.events = []
-        if self.catalogue_uuid:
-            catalogue = get_entity_from_uuid_safe(self.catalogue_uuid)
-            if catalogue:
-                self.events = tscat.get_events(catalogue)
+        if self.catalogue_uuids:
+            filter = tscat.filtering.Any(
+                *[tscat.filtering.InCatalogue(get_entity_from_uuid_safe(uuid))
+                  for uuid in self.catalogue_uuids])
+
+            self.events = tscat.get_events(filter)
         self.endResetModel()
 
-    def set_catalogue(self, command, type, uuid):
+    def set_catalogue(self, command, type, uuids):
         if command in ['active_select', 'passive_select'] and type == tscat._Catalogue:
-            self.catalogue_uuid = uuid
+            self.catalogue_uuids = uuids
             self.reset()
 
     def index_from_uuid(self, uuid: str, parent=QtCore.QModelIndex()) -> QtCore.QModelIndex:
