@@ -181,6 +181,7 @@ class _Comparison(_PredicateWidget):
 
         self._current_value_widget = widget
         self._layout.addWidget(widget)
+        widget.show()
         self.changed.emit()
 
     def predicate(self) -> Optional[Union[Comparison, Match, Not]]:
