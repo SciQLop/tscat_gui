@@ -192,7 +192,7 @@ class NewEvent(_EntityBased):
 
         assert len(self._select_state.selected_catalogues) == 1
 
-        catalogue = get_entity_from_uuid_safe(self._select_state.active_catalogues[0])
+        catalogue = get_entity_from_uuid_safe(self._select_state.selected_catalogues[0])
         tscat.add_events_to_catalogue(catalogue, event)
 
         self.state.updated("inserted", tscat._Event, event.uuid)
