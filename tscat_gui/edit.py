@@ -137,7 +137,7 @@ _type_name = {
     'Float': float,
     'Integer': int,
     'String': str,
-    'Word List': List[str],
+    'Word List': list,
 }
 
 _type_name_initial_value = {
