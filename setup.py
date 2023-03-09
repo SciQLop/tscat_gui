@@ -35,7 +35,7 @@ setup(
     description="Time-series catalogue - graphical user interface library",
     entry_points={
         'console_scripts': [
-            'tscat_gui=tscat_gui.cli:main',
+            'tscat_gui=tscat_gui.app:main',
         ],
     },
     install_requires=requirements,
@@ -49,5 +49,5 @@ setup(
     tests_require=test_requirements,
     url='https://github.com/SciQLop/tscat_gui',
     version='0.2.0',
-    zip_safe=False,
+    zip_safe=False
 )

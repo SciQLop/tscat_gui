@@ -6,20 +6,17 @@ __version__ = '0.2.0'
 
 import datetime as dt
 import os
+import sys
 from pathlib import Path
-from typing import Union, Sequence, Type, cast, no_type_check
-
-from PySide6 import QtWidgets, QtGui, QtCore
+from typing import Union, Sequence, Type, cast
 
 import tscat
-
-from .model import CatalogueModel, EventModel, UUIDRole
+from PySide6 import QtWidgets, QtGui, QtCore
 
 from .edit import EntityEditView
+from .model import CatalogueModel, EventModel, UUIDRole
 from .state import AppState
-
 from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash, DeletePermanently, NewEvent, Import
-
 from .utils.helper import get_entity_from_uuid_safe
 
 
@@ -252,7 +249,8 @@ class TSCatGUI(QtWidgets.QWidget):
         self.catalogue_sort_filter_model = _TrashAlwaysTopOrBottomSortFilterModel()
         self.catalogue_sort_filter_model.setSourceModel(self.catalogue_model)
         self.catalogue_sort_filter_model.setRecursiveFilteringEnabled(True)
-        self.catalogue_sort_filter_model.setFilterCaseSensitivity(QtCore.Qt.CaseSensitivity.CaseInsensitive)  # type: ignore
+        self.catalogue_sort_filter_model.setFilterCaseSensitivity(
+            QtCore.Qt.CaseSensitivity.CaseInsensitive)  # type: ignore
 
         self.catalogues_view.setModel(self.catalogue_sort_filter_model)
         self.catalogues_view.setSortingEnabled(True)
@@ -260,8 +258,9 @@ class TSCatGUI(QtWidgets.QWidget):
 
         self.catalogues_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)  # type: ignore
 
-        self.catalogues_view.selectionModel().selectionChanged.connect(self.__catalogue_selection_changed,  # type: ignore
-                                                                       type=QtCore.Qt.DirectConnection)  # type: ignore
+        self.catalogues_view.selectionModel().selectionChanged.connect(  # type: ignore
+            self.__catalogue_selection_changed,
+            type=QtCore.Qt.DirectConnection)  # type: ignore
 
         # Catalogue Layout and Filter
         hlayout = QtWidgets.QHBoxLayout()
@@ -269,7 +268,8 @@ class TSCatGUI(QtWidgets.QWidget):
         hlayout.addWidget(QtWidgets.QLabel('Filter:'))
 
         catalogue_filter = QtWidgets.QLineEdit()
-        catalogue_filter.textChanged.connect(lambda t: self.catalogue_sort_filter_model.setFilterRegularExpression(t))  # type: ignore
+        catalogue_filter.textChanged.connect(  # type: ignore
+            lambda t: self.catalogue_sort_filter_model.setFilterRegularExpression(t))
 
         hlayout.addWidget(catalogue_filter)
 
@@ -306,8 +306,9 @@ class TSCatGUI(QtWidgets.QWidget):
         self.new_event_action = action
 
         toolbar.addSeparator()
-        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton), "Save To Disk",  # type: ignore
-                               self)
+        action = QtGui.QAction(
+            self.style().standardIcon(QtWidgets.QStyle.SP_DialogSaveButton), "Save To Disk",  # type: ignore
+            self)
 
         action.triggered.connect(self.save)  # type: ignore
         toolbar.addAction(action)
@@ -333,7 +334,8 @@ class TSCatGUI(QtWidgets.QWidget):
 
         toolbar.addSeparator()
 
-        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_TrashIcon), "Move to Trash", self)  # type: ignore
+        action = QtGui.QAction(
+            self.style().standardIcon(QtWidgets.QStyle.SP_TrashIcon), "Move to Trash", self)  # type: ignore
 
         action.triggered.connect(lambda: self.state.push_undo_command(MoveEntityToTrash))  # type: ignore
         action.setEnabled(False)
@@ -348,8 +350,9 @@ class TSCatGUI(QtWidgets.QWidget):
         toolbar.addAction(action)
         self.restore_from_trash_action = action
 
-        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_BrowserStop), "Delete permanently",  # type: ignore
-                               self)
+        action = QtGui.QAction(
+            self.style().standardIcon(QtWidgets.QStyle.SP_BrowserStop), "Delete permanently",  # type: ignore
+            self)
 
         action.triggered.connect(lambda: self.state.push_undo_command(DeletePermanently))  # type: ignore
         action.setEnabled(False)
@@ -358,8 +361,9 @@ class TSCatGUI(QtWidgets.QWidget):
 
         toolbar.addSeparator()
 
-        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DialogRetryButton), "Refresh",  # type: ignore
-                               self)
+        action = QtGui.QAction(
+            self.style().standardIcon(QtWidgets.QStyle.SP_DialogRetryButton), "Refresh",  # type: ignore
+            self)
 
         action.triggered.connect(self.__refresh_current_selection)  # type: ignore
         toolbar.addAction(action)
@@ -368,8 +372,9 @@ class TSCatGUI(QtWidgets.QWidget):
 
         toolbar.addSeparator()
 
-        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_ArrowUp), "Import Catalogue",  # type: ignore
-                               self)
+        action = QtGui.QAction(
+            self.style().standardIcon(QtWidgets.QStyle.SP_ArrowUp), "Import Catalogue",  # type: ignore
+            self)
 
         action.triggered.connect(self.__import_from_file)  # type: ignore
         toolbar.addAction(action)
@@ -426,3 +431,24 @@ class TSCatGUI(QtWidgets.QWidget):
     def save(self) -> None:
         tscat.save()
         self.state.set_undo_stack_clean()
+
+
+def main():
+    # QtWidgets.QApplication.setDesktopSettingsAware(False)  # defaulting to light mode
+
+    app = QtWidgets.QApplication(sys.argv)
+
+    main = QtWidgets.QMainWindow()
+
+    w = TSCatGUI(main)
+
+    main.setCentralWidget(w)
+
+    #     styles = """
+    # QTreeView::!active { selection-background-color: gray;}
+    # """
+    #     main.setStyleSheet(styles)
+
+    main.show()
+
+    sys.exit(app.exec())
