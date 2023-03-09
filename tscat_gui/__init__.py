@@ -236,7 +236,11 @@ class TSCatGUI(QtWidgets.QWidget):
         self.splitter_right.addWidget(self.edit_view)
 
         # Catalogue Model and View
-        self.catalogue_model = CatalogueModel(self.state, self)
+
+        from .tscat_driver import tscat_model
+        self.catalogue_model = tscat_model.tscat_root()
+
+        # CatalogueModel(self.state, self)
 
         self.catalogues_view = QtWidgets.QTreeView()
         self.catalogues_view.setMinimumSize(300, 900)
@@ -246,13 +250,13 @@ class TSCatGUI(QtWidgets.QWidget):
         self.catalogues_view.setDropIndicatorShown(True)
         self.catalogues_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)  # type: ignore
 
-        self.catalogue_sort_filter_model = _TrashAlwaysTopOrBottomSortFilterModel()
-        self.catalogue_sort_filter_model.setSourceModel(self.catalogue_model)
-        self.catalogue_sort_filter_model.setRecursiveFilteringEnabled(True)
-        self.catalogue_sort_filter_model.setFilterCaseSensitivity(
-            QtCore.Qt.CaseSensitivity.CaseInsensitive)  # type: ignore
+        # self.catalogue_sort_filter_model = _TrashAlwaysTopOrBottomSortFilterModel()
+        # self.catalogue_sort_filter_model.setSourceModel(self.catalogue_model)
+        # self.catalogue_sort_filter_model.setRecursiveFilteringEnabled(True)
+        # self.catalogue_sort_filter_model.setFilterCaseSensitivity(
+        #    QtCore.Qt.CaseSensitivity.CaseInsensitive)  # type: ignore
 
-        self.catalogues_view.setModel(self.catalogue_sort_filter_model)
+        self.catalogues_view.setModel(self.catalogue_model)
         self.catalogues_view.setSortingEnabled(True)
         self.catalogues_view.sortByColumn(0, QtCore.Qt.SortOrder.AscendingOrder)  # type: ignore
 
