@@ -39,7 +39,7 @@ class _ReadOnlyString(str):
 class _PredicateDelegate(QtWidgets.QWidget):
     editingFinished = QtCore.Signal()
 
-    def __init__(self, value: Optional[tscat.Predicate], parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(self, value: Optional[tscat.filtering.Predicate], parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self.predicate = value
@@ -75,7 +75,7 @@ class _PredicateDelegate(QtWidgets.QWidget):
         self.predicate = None
         self.editingFinished.emit()
 
-    def value(self) -> Union[tscat.Predicate, None]:
+    def value(self) -> Union[tscat.filtering.Predicate, None]:
         return self.predicate
 
 

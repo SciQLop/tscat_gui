@@ -581,7 +581,7 @@ class _DeletePredicateWidget(QtWidgets.QToolButton):
 
 
 class SimplePredicateEditDialog(QtWidgets.QDialog):
-    def __init__(self, predicate: Optional[tscat.Predicate], parent=None):
+    def __init__(self, predicate: Optional[Predicate], parent=None):
         super().__init__(parent)
 
         layout = QtWidgets.QVBoxLayout()
