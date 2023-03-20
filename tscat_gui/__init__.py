@@ -14,7 +14,7 @@ import tscat
 from PySide6 import QtWidgets, QtGui, QtCore
 
 from .edit import EntityEditView
-from .model import CatalogueModel, EventModel, UUIDRole
+from .model_base.constants import UUIDDataRole
 from .state import AppState
 from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash, DeletePermanently, NewEvent, Import
 from .utils.helper import get_entity_from_uuid_safe
@@ -26,6 +26,7 @@ class _TrashAlwaysTopOrBottomSortFilterModel(QtCore.QSortFilterProxyModel):
 
     def lessThan(self, source_left: Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex],
                  source_right: Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex]) -> bool:
+
         left = self.sourceModel().data(source_left)
         right = self.sourceModel().data(source_right)
 
@@ -48,6 +49,8 @@ class TSCatGUI(QtWidgets.QWidget):
 
         self.state = AppState()
 
+        from .tscat_driver.driver import tscat_driver
+        tscat_driver.setParent(self)
         # used a state-variable to differentiate user-induced selections of entities vs programmatically ones
         # needs direct-connected signal to work properly
         self.programmatic_select = False
@@ -59,32 +62,39 @@ class TSCatGUI(QtWidgets.QWidget):
 
     def __state_changed(self, action: str, type: Union[Type[tscat._Catalogue], Type[tscat._Event]],
                         uuids: Sequence[str]) -> None:
-        if action in ['changed', 'moved', 'inserted', 'deleted', 'active_select', 'passive_select']:
+        if action in ['active_select', 'passive_select']:
             if type == tscat._Catalogue:
-                if action not in ['active_select', 'passive_select']:
-                    self.catalogue_model.reset()
-
                 indexes = list(map(self.catalogue_model.index_from_uuid, uuids))
-                indexes = list(map(self.catalogue_sort_filter_model.mapFromSource, indexes))
+                # indexes = list(map(self.catalogue_sort_filter_model.mapFromSource, indexes))
                 self.programmatic_select = True
                 self.catalogues_view.clearSelection()
                 for index in indexes:
                     self.catalogues_view.selectionModel().select(index,
                                                                  QtCore.QItemSelectionModel.SelectionFlag.Select)
                 self.programmatic_select = False
-            else:
-                if action not in ['active_select', 'passive_select']:
-                    self.events_model.reset()
 
-                indexes = list(map(self.events_model.index_from_uuid, uuids))
-                indexes = list(map(self.events_sort_model.mapFromSource, indexes))
-                self.programmatic_select = True
-                self.events_view.clearSelection()
-                for index in indexes:
-                    self.events_view.selectionModel().select(index,
-                                                             QtCore.QItemSelectionModel.SelectionFlag.Select |
-                                                             QtCore.QItemSelectionModel.SelectionFlag.Rows)
-                self.programmatic_select = False
+                # TODO use a combined model
+                if uuids:
+                    from .tscat_driver.model import tscat_model
+                    model = tscat_model.catalog(uuids[0])
+                    # self.events_sort_model.setSourceModel(model)
+                    self.events_view.setModel(model)
+                    self.events_view.selectionModel().selectionChanged.connect(self.__current_event_changed,  # type: ignore
+                                                                              type=QtCore.Qt.DirectConnection)  # type: ignore
+                else:
+                    # self.events_sort_model.setSourceModel(None)
+                    self.events_view.setModel(None)
+            else:
+                pass
+                # indexes = list(map(self.events_model.index_from_uuid, uuids))
+                # indexes = list(map(self.events_sort_model.mapFromSource, indexes))
+                # self.programmatic_select = True
+                # self.events_view.clearSelection()
+                # for index in indexes:
+                #     self.events_view.selectionModel().select(index,
+                #                                              QtCore.QItemSelectionModel.SelectionFlag.Select |
+                #                                              QtCore.QItemSelectionModel.SelectionFlag.Rows)
+                # self.programmatic_select = False
 
         if action == 'active_select':
             self.move_to_trash_action.setEnabled(False)
@@ -99,11 +109,11 @@ class TSCatGUI(QtWidgets.QWidget):
 
                 enable_restore = False
                 enable_move_to_trash = False
-                for entity in map(get_entity_from_uuid_safe, uuids):
-                    if entity.is_removed():
-                        enable_restore |= True
-                    else:
-                        enable_move_to_trash |= True
+                # for entity in map(get_entity_from_uuid_safe, uuids):
+                #     if entity.is_removed():
+                #         enable_restore |= True
+                #     else:
+                #         enable_move_to_trash |= True
 
                 self.restore_from_trash_action.setEnabled(enable_restore)
                 self.move_to_trash_action.setEnabled(enable_move_to_trash)
@@ -112,12 +122,13 @@ class TSCatGUI(QtWidgets.QWidget):
 
     def __current_event_changed(self, _: QtCore.QModelIndex, __: QtCore.QModelIndex) -> None:
         if not self.programmatic_select:
-            uuids = [index.data(UUIDRole) for index in self.events_view.selectedIndexes() if index.column() == 0]
+            uuids = [index.data(UUIDDataRole) for index in self.events_view.selectedIndexes() if index.column() == 0]
             self.state.updated('active_select', tscat._Event, uuids)
 
     def __catalogue_selection_changed(self, _: QtCore.QItemSelection, __: QtCore.QItemSelection) -> None:
         if not self.programmatic_select:
-            uuids = [index.data(UUIDRole) for index in self.catalogues_view.selectedIndexes()]
+            print('selection', len(self.catalogues_view.selectedIndexes()))
+            uuids = [index.data(UUIDDataRole) for index in self.catalogues_view.selectedIndexes()]
             self.state.updated('active_select', tscat._Catalogue, uuids)
 
     def __create_undo_redo_action_menu_on_toolbutton(self,
@@ -158,8 +169,8 @@ class TSCatGUI(QtWidgets.QWidget):
 
     def __refresh_current_selection(self) -> None:
         current_selection = self.state.select_state()
-        self.catalogue_model.reset()
-        self.events_model.reset()
+        # self.catalogue_model.reset()
+        # self.events_model.reset()
 
         if current_selection.type == tscat._Event:
             self.state.updated('passive_select', tscat._Catalogue, current_selection.selected_catalogues)
@@ -210,22 +221,22 @@ class TSCatGUI(QtWidgets.QWidget):
 
     def __setup_ui(self) -> None:
         # Event Model and View
-        self.events_model = EventModel(self.state, self)
+        # self.events_model = EventModel(self.state, self)
         self.events_sort_model = QtCore.QSortFilterProxyModel()
-        self.events_sort_model.setSourceModel(self.events_model)
+        # self.events_sort_model.setSourceModel(self.events_model)
 
         self.events_view = QtWidgets.QTableView()
         self.events_view.setMinimumSize(1000, 500)
         self.events_view.setSortingEnabled(True)
         self.events_view.sortByColumn(0, QtCore.Qt.SortOrder.AscendingOrder)
 
-        self.events_view.setModel(self.events_sort_model)
+        # self.events_view.setModel(self.events_sort_model)
         self.events_view.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
         self.events_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)  # type: ignore
         self.events_view.setDragEnabled(True)
         self.events_view.setDragDropMode(QtWidgets.QTreeView.DragDropMode.DragOnly)
-        self.events_view.selectionModel().selectionChanged.connect(self.__current_event_changed,  # type: ignore
-                                                                   type=QtCore.Qt.DirectConnection)  # type: ignore
+        # self.events_view.selectionModel().selectionChanged.connect(self.__current_event_changed,  # type: ignore
+        #                                                           type=QtCore.Qt.DirectConnection)  # type: ignore
 
         # Edit View
         self.edit_view = EntityEditView(self.state, self)
@@ -237,10 +248,8 @@ class TSCatGUI(QtWidgets.QWidget):
 
         # Catalogue Model and View
 
-        from .tscat_driver import tscat_model
+        from .tscat_driver.model import tscat_model
         self.catalogue_model = tscat_model.tscat_root()
-
-        # CatalogueModel(self.state, self)
 
         self.catalogues_view = QtWidgets.QTreeView()
         self.catalogues_view.setMinimumSize(300, 900)
@@ -250,12 +259,13 @@ class TSCatGUI(QtWidgets.QWidget):
         self.catalogues_view.setDropIndicatorShown(True)
         self.catalogues_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)  # type: ignore
 
-        # self.catalogue_sort_filter_model = _TrashAlwaysTopOrBottomSortFilterModel()
-        # self.catalogue_sort_filter_model.setSourceModel(self.catalogue_model)
-        # self.catalogue_sort_filter_model.setRecursiveFilteringEnabled(True)
-        # self.catalogue_sort_filter_model.setFilterCaseSensitivity(
-        #    QtCore.Qt.CaseSensitivity.CaseInsensitive)  # type: ignore
+        self.catalogue_sort_filter_model = _TrashAlwaysTopOrBottomSortFilterModel()
+        self.catalogue_sort_filter_model.setSourceModel(self.catalogue_model)
+        self.catalogue_sort_filter_model.setRecursiveFilteringEnabled(True)
+        self.catalogue_sort_filter_model.setFilterCaseSensitivity(
+            QtCore.Qt.CaseSensitivity.CaseInsensitive)  # type: ignore
 
+        # self.catalogues_view.setModel(self.catalogue_sort_filter_model)
         self.catalogues_view.setModel(self.catalogue_model)
         self.catalogues_view.setSortingEnabled(True)
         self.catalogues_view.sortByColumn(0, QtCore.Qt.SortOrder.AscendingOrder)  # type: ignore

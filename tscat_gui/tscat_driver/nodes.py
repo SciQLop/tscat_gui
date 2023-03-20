@@ -1,33 +1,33 @@
-from typing import Sequence, Union, Optional
+from abc import ABC
+from typing import Sequence, Optional
 
 from tscat import _Event, _Catalogue
 
 
 class Node:
-    def __init__(self, name: str, children: Sequence[Union['Node', 'CatalogNode']], parent: Optional['Node'] = None):
-        self._name = name
+    def __init__(self, children: Sequence['Node']) -> None:
+        self._parent = None
         self.children = children
-        self._parent = parent
-
-    def set_parent(self, parent):
-        self._parent = parent
-
-    @property
-    def name(self) -> str:
-        return self._name
 
     @property
     def parent(self) -> Optional['Node']:
         return self._parent
+
+    @parent.setter
+    def parent(self, parent: 'Node') -> None:
+        if self._parent is not None and self._parent != parent:  # reparenting forbidden
+            print('reparenting', self, self._parent, parent)
+        self._parent = parent
 
     @property
     def children(self) -> Sequence['Node']:
         return self._children
 
     @children.setter
-    def children(self, children):
+    def children(self, children) -> None:
         self._children = children
-        list(map(lambda child: child.set_parent(self), children))
+        for child in children:
+            child.parent = self
 
     @property
     def row(self):
@@ -36,20 +36,50 @@ class Node:
         return 0
 
 
-class EventNode:
+class NamedNode(Node, ABC):
+    def __init__(self, children: Sequence['Node']):
+        Node.__init__(self,children)
+
+    @property
+    def name(self) -> str:
+        ...
+
+
+class EventNode(Node):
     def __init__(self, event: _Event):
-        self._node = event
+        super().__init__([])
+        self._entity = event
 
     @property
     def uuid(self):
-        return self._node.uuid
+        return self._entity.uuid
+
+    @property
+    def node(self):
+        return self._entity
+
+    @node.setter
+    def node(self, entity) -> None:
+        self._entity = entity
 
 
-class CatalogNode(Node):
-    def __init__(self, catalog: _Catalogue, events: Sequence[EventNode]):
-        super().__init__(name=catalog.name, children=events)
-        self._node = catalog
+class CatalogNode(NamedNode):
+    def __init__(self, catalog: _Catalogue):
+        super().__init__([])
+        self._entity = catalog
 
     @property
     def uuid(self):
-        return self._node.uuid
+        return self._entity.uuid
+
+    @property
+    def node(self):
+        return self._entity
+
+    @node.setter
+    def node(self, entity) -> None:
+        self._entity = entity
+
+    @property
+    def name(self) -> str:
+        return self._entity.name
