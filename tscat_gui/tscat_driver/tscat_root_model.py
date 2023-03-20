@@ -1,65 +1,92 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from PySide6.QtCore import QModelIndex, QAbstractItemModel, QPersistentModelIndex, Qt
+from tscat import _Event, _Catalogue
 
+from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEntityAction, RemoveEntityAction, SetAttributeAction, DeleteAttributeAction
 from .catalog_model import CatalogModel
 from .driver import tscat_driver
-from .nodes import Node, CatalogNode
-
-UUIDRole = Qt.UserRole + 1  # type: ignore
-
-
-def _build_root_hierarchy(catalogs, trash_catalogs) -> Node:
-    return Node("root",
-                children=
-                list(map(lambda c: CatalogNode(c, []), catalogs))
-                +
-                [Node("Trash", children=list(map(lambda c: CatalogNode(c, []), trash_catalogs)))]
-                )
-
-
-def _build_catalog_model(catalog: CatalogNode) -> CatalogModel:
-    return CatalogModel(catalog)
-
-
-def _update_catalog(catalog: CatalogNode, root_model: QAbstractItemModel, catalog_model: CatalogModel):
-    catalog_model.update(catalog)
+from .nodes import Node, NamedNode, CatalogNode
+from ..model_base.constants import UUIDDataRole
 
 
 class TscatRootModel(QAbstractItemModel):
     def __init__(self):
         super().__init__()
-        self._root = Node("root", children=[])
-        self._catalogs: Dict[str, CatalogModel] = {}
-        tscat_driver.get_catalogs(self._update_catalogs)
+        self._root = NamedNode([])
+        self._catalogues: Dict[str, CatalogModel] = {}
 
-    def update(self, root: Node):
-        self.beginResetModel()
-        self._root = root
-        self.endResetModel()
+        tscat_driver.action_done.connect(self._driver_action_done)
 
-    def _update_catalogs(self, catalogs):
-        for catalog in catalogs:
-            if catalog.uuid not in self._catalogs:
-                self._catalogs[catalog.uuid] = CatalogModel(None)
-                self._update_catalog(catalog, [])
-            tscat_driver.get_catalog(catalog.uuid, self._update_catalog)
+        tscat_driver.do(GetCataloguesAction(None, False))
 
-    def _update_catalog(self, catalog, events):
-        self.update_catalog(CatalogNode(catalog=catalog, events=events))
+    def _driver_action_done(self, action: Action) -> None:
+        if isinstance(action, GetCataloguesAction):
+            self.beginResetModel()
+            self._root.children = []
+            for c in action.catalogues:
+                node = CatalogNode(c)
+                self._root.children.append(node)
+            self.endResetModel()
 
-    def update_catalog(self, catalog: CatalogNode):
-        self.beginResetModel()
-        self._root.children = list(
-            filter(lambda n: not (isinstance(n, CatalogNode) and n.uuid == catalog.uuid),
-                   self._root.children)) + [catalog]
-        self.endResetModel()
-        self._catalogs[catalog.uuid].update(catalog)
+        elif isinstance(action, GetCatalogueAction):
+            for row, child in enumerate(self._root.children):
+                if child.uuid == action.uuid:
+                    break
+            else:
+                return
 
-    def catalog(self, uid: str) -> CatalogModel:
-        return self._catalogs[uid]
+            index = self.index(row, 0, QModelIndex())
+            self.dataChanged.emit(index, index)
 
-    def index(self, row: int, column: int, parent: QModelIndex | QPersistentModelIndex = ...) -> QModelIndex:
+        elif isinstance(action, CreateEntityAction):
+            if isinstance(action.entity, _Catalogue):
+                self.beginInsertRows(QModelIndex(), len(self._root.children), len(self._root.children) + 1)
+                node = CatalogNode(action.entity)
+                self._root.children.append(node)
+                self.endInsertRows()
+
+        elif isinstance(action, RemoveEntityAction):
+            for row, c in enumerate(self._root.children[::-1]):
+                if c.uuid == action.uuid:
+                    self.beginRemoveRows(QModelIndex(), row, row)
+                    self._root.children.remove(c)
+                    self.endRemoveRows()
+
+        elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
+            for e in filter(lambda x: isinstance(x, _Catalogue), action.entities):
+                for row, child in enumerate(self._root.children):
+                    if child.uuid == e.uuid:
+                        child.node = e
+                        index = self.index(row, 0, QModelIndex())
+                        self.dataChanged.emit(index, index)
+
+    def catalog(self, uuid: str) -> CatalogModel:
+        if uuid not in self._catalogues:
+            for child in self._root.children:
+                if uuid == child.uuid:
+                    break
+            else:
+                assert False
+
+            catalogue_model = CatalogModel(child)
+            self._catalogues[uuid] = catalogue_model
+            tscat_driver.do(GetCatalogueAction(None, uuid=uuid))
+
+        return self._catalogues[uuid]
+
+    def index_from_uuid(self, uuid: str, parent=QModelIndex()) -> QModelIndex:
+        for i in range(self.rowCount(parent)):
+            index = self.index(i, 0, parent)
+            if self.data(index, UUIDDataRole) == uuid:
+                return index
+            if self.rowCount(index) > 0:
+                result = self.index_from_uuid(uuid, index)
+                if result != QModelIndex():
+                    return result
+        return QModelIndex()
+
+    def index(self, row: int, column: int, parent: QModelIndex | QPersistentModelIndex) -> QModelIndex:
         if self.hasIndex(row, column, parent):
             if not parent.isValid():
                 parent_item: Node = self._root
@@ -70,7 +97,7 @@ class TscatRootModel(QAbstractItemModel):
                 return self.createIndex(row, column, child_item)
         return QModelIndex()
 
-    def parent(self, index: QModelIndex | QPersistentModelIndex = ...) -> QModelIndex:
+    def parent(self, index: QModelIndex | QPersistentModelIndex) -> QModelIndex:
         if not index.isValid():
             return QModelIndex()
         child_item: Node = index.internalPointer()
@@ -79,7 +106,7 @@ class TscatRootModel(QAbstractItemModel):
             return self.createIndex(parent_item.row, 0, parent_item)
         return QModelIndex()
 
-    def rowCount(self, parent: QModelIndex | QPersistentModelIndex = ...) -> int:
+    def rowCount(self, parent: QModelIndex | QPersistentModelIndex) -> int:
         if parent.column() > 0:
             return 0
         if not parent.isValid():
@@ -92,15 +119,15 @@ class TscatRootModel(QAbstractItemModel):
         else:
             return len(parent_item.children)
 
-    def columnCount(self, parent: QModelIndex | QPersistentModelIndex = ...) -> int:
+    def columnCount(self, parent: QModelIndex | QPersistentModelIndex) -> int:
         return 1
 
-    def data(self, index: QModelIndex | QPersistentModelIndex, role: int = ...) -> Any:
+    def data(self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.DisplayRole) -> Any:
         if index.isValid():
             item: Node = index.internalPointer()
             if role == Qt.DisplayRole:
                 return item.name
-            if role == UUIDRole:
+            if role == UUIDDataRole:
                 if isinstance(item, CatalogNode):
                     return item.uuid
 

@@ -1,75 +1,78 @@
-from typing import Protocol
+import atexit
+from typing import Dict, Union, Sequence, Any, List, Type, Callable, Optional
 
-import tscat
 from PySide6.QtCore import QObject, QThread, Slot, Signal, Qt
-from tscat import get_catalogues, get_events, _Catalogue
-from tscat.filtering import UUID
+from tscat import get_catalogues, get_events, _Catalogue, _Event, create_catalogue
 
-
-class QObjectMethod(Protocol):
-    __name__: str
-    __self__: QObject
-
-    def __call__(self, *args, **kwargs):
-        ...
+from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEntityAction, RemoveEntityAction, SetAttributeAction, DeleteAttributeAction
 
 
 class _TscatDriverWorker(QThread):
-    got_catalog = Signal(_Catalogue, list, QObjectMethod)
-    got_catalogs = Signal(list, QObjectMethod)
+    action_done = Signal(Action)
 
-    def __init__(self, parent: QObject or None = None):
+    def __init__(self, parent: QObject or None = None) -> None:
         super().__init__(parent=parent)
         self.moveToThread(self)
         self.start()
 
-    def run(self):
-        while not self.isInterruptionRequested():
-            self.exec()
-
     @Slot()
-    def get_catalog(self, uid: str, callback: QObjectMethod):
-        catalog = get_catalogues(UUID(uid))[0]
-        events = get_events(catalog)
-        self.got_catalog.emit(catalog, events, callback)
-
-    @Slot()
-    def get_catalogs(self, removed_items: bool, callback: QObjectMethod):
-        catalogs = tscat.get_catalogues(removed_items=removed_items)
-        print(catalogs)
-        self.got_catalogs.emit(catalogs, callback)
+    def do_action(self, action: Action) -> None:
+        action.action()
+        action.completed = True
+        self.action_done.emit(action)
 
 
 class TscatDriver(QObject):
-    _get_catalog = Signal(str, QObjectMethod)
-    _get_catalogs = Signal(bool, QObjectMethod)
+    # internal signals used between driver and worker
+    _do_action = Signal(Action)
+    action_done = Signal(Action)
 
     def __init__(self, parent: QObject or None = None):
         super().__init__(parent=parent)
+
         self._worker = _TscatDriverWorker()
 
-        self._get_catalog.connect(self._worker.get_catalog, Qt.QueuedConnection)
-        self._worker.got_catalog.connect(self._got_catalog, Qt.QueuedConnection)
+        self._do_action.connect(self._worker.do_action)
+        self._worker.action_done.connect(self._worker_action_done)
 
-        self._get_catalogs.connect(self._worker.get_catalogs, Qt.QueuedConnection)
-        self._worker.got_catalogs.connect(self._got_catalogs, Qt.QueuedConnection)
+        self._entity_cache: Dict[str, Union[_Event, _Catalogue]] = {}
+        self.destroyed.connect(self.stop)
+
+    def do(self, action: Action) -> None:
+        self._do_action.emit(action)
 
     @Slot()
-    def _got_catalog(self, catalog: _Catalogue, events: list, callback: QObjectMethod):
-        callback(catalog, events)
+    def _worker_action_done(self, action: Action) -> None:
+        if isinstance(action, GetCataloguesAction):
+            for catalogue in action.catalogues:
+                self._entity_cache[catalogue.uuid] = catalogue
 
-    @Slot()
-    def _got_catalogs(self, catalogs: list, callback: QObjectMethod):
-        callback(catalogs)
+        elif isinstance(action, GetCatalogueAction):
+            for event in action.events:
+                self._entity_cache[event.uuid] = event
 
-    def get_catalog(self, uid: str, callback: QObjectMethod):
-        self._get_catalog.emit(uid, callback)
+        elif isinstance(action, CreateEntityAction):
+            self._entity_cache[action.entity.uuid] = action.entity
 
-    def get_catalogs(self, callback: QObjectMethod):
-        self._get_catalogs.emit(False, callback)
+        elif isinstance(action, RemoveEntityAction):
+            if action.uuid in self._entity_cache:
+                del self._entity_cache[action.uuid]
 
-    def get_trash(self, callback: QObjectMethod):
-        self._get_catalogs.emit(True, callback)
+        elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
+            for e in action.entities:
+                print('updating', e)
+                self._entity_cache[e.uuid] = e
+
+        self.action_done.emit(action)
+
+    def entity_from_uuid(self, uuid: str) -> Union[_Event, _Catalogue]:
+        return self._entity_cache[uuid]
+
+    def stop(self):
+        self._worker.requestInterruption()
+        if not self._worker.wait(1000):
+            self._worker.quit()
 
 
 tscat_driver = TscatDriver()
+atexit.register(tscat_driver.stop)

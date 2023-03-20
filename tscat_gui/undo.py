@@ -1,15 +1,17 @@
 import abc
-from dataclasses import dataclass
-from copy import deepcopy
 import datetime as dt
 import os
+from copy import deepcopy
+from dataclasses import dataclass
 from typing import Union, Optional, Type, List, Dict
 
+import tscat
 from PySide6 import QtGui
 
-import tscat
-from .utils.helper import get_entity_from_uuid_safe
 from .state import AppState
+from .tscat_driver.actions import CreateEntityAction, RemoveEntityAction, SetAttributeAction, DeleteAttributeAction, \
+    AddEventsToCatalogueAction, RemoveEventsFromCatalogueAction
+from .utils.helper import get_entity_from_uuid_safe
 
 
 class _EntityBased(QtGui.QUndoCommand):
@@ -23,7 +25,8 @@ class _EntityBased(QtGui.QUndoCommand):
         return self._select_state.selected
 
     def _mapped_selected_entities(self) -> List[Union[tscat._Catalogue, tscat._Event]]:
-        return list(map(get_entity_from_uuid_safe, self._selected_entities()))
+        from .tscat_driver.model import tscat_model
+        return tscat_model.entities_from_uuids(self._selected_entities())
 
     def _select(self, uuids: List[str],
                 type: Optional[Union[Type[tscat._Catalogue], Type[tscat._Event]]] = None):
@@ -59,18 +62,17 @@ class NewAttribute(_EntityBased):
         self.value = value
 
     def _redo(self) -> None:
-        for entity in self._mapped_selected_entities():
-            entity.__setattr__(self.name, self.value)
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(SetAttributeAction(None, self._selected_entities(),
+                                          self.name, [self.value] * len(self._selected_entities())))
 
         self._select(self._selected_entities())
-        self.state.updated('changed', type(entity), self._selected_entities())
 
     def _undo(self) -> None:
-        for entity in self._mapped_selected_entities():
-            entity.__delattr__(self.name)
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(DeleteAttributeAction(None, self._selected_entities(), self.name))
 
         self._select(self._selected_entities())
-        self.state.updated('changed', type(entity), self._selected_entities())
 
 
 class RenameAttribute(_EntityBased):
@@ -84,22 +86,20 @@ class RenameAttribute(_EntityBased):
         self.old_name = old_name
 
     def _redo(self) -> None:
-        for entity in self._mapped_selected_entities():
-            value = entity.__dict__[self.old_name]
-            entity.__delattr__(self.old_name)
-            entity.__setattr__(self.new_name, value)
+        values = [entity.__dict__[self.old_name] for entity in self._mapped_selected_entities()]
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(DeleteAttributeAction(None, self._selected_entities(), self.old_name))
+        tscat_model.do(SetAttributeAction(None, self._selected_entities(), self.new_name, values))
 
         self._select(self._selected_entities())
-        self.state.updated('changed', type(entity), self._selected_entities())
 
     def _undo(self) -> None:
-        for entity in self._mapped_selected_entities():
-            value = entity.__dict__[self.new_name]
-            entity.__delattr__(self.new_name)
-            entity.__setattr__(self.old_name, value)
+        values = [entity.__dict__[self.new_name] for entity in self._mapped_selected_entities()]
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(DeleteAttributeAction(None, self._selected_entities(), self.new_name))
+        tscat_model.do(SetAttributeAction(None, self._selected_entities(), self.old_name, values))
 
         self._select(self._selected_entities())
-        self.state.updated('changed', type(entity), self._selected_entities())
 
 
 class DeleteAttribute(_EntityBased):
@@ -113,19 +113,14 @@ class DeleteAttribute(_EntityBased):
         self.values = [entity.__dict__[name] for entity in self._mapped_selected_entities()]
 
     def _redo(self) -> None:
-        for entity in self._mapped_selected_entities():
-            entity.__delattr__(self.name)
-
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(DeleteAttributeAction(None, self._selected_entities(), self.name))
         self._select(self._selected_entities())
-        entity.is_removed()
-        self.state.updated('changed', type(entity), self._selected_entities())
 
     def _undo(self) -> None:
-        for entity, value in zip(self._mapped_selected_entities(), self.values):
-            entity.__setattr__(self.name, value)
-
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(SetAttributeAction(None, self._selected_entities(), self.name, self.values))
         self._select(self._selected_entities())
-        self.state.updated('changed', type(entity), self._selected_entities())
 
 
 class SetAttributeValue(_EntityBased):
@@ -140,18 +135,17 @@ class SetAttributeValue(_EntityBased):
         self.new_value = value
 
     def _redo(self) -> None:
-        for entity in self._mapped_selected_entities():
-            entity.__setattr__(self.name, self.new_value)
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(SetAttributeAction(None, self._selected_entities(), self.name,
+                                          [self.new_value] * len(self._selected_entities())))
 
         self._select(self._selected_entities())
-        self.state.updated('changed', type(entity), self._selected_entities())
 
     def _undo(self) -> None:
-        for entity, value in zip(self._mapped_selected_entities(), self.previous_values):
-            entity.__setattr__(self.name, value)
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(SetAttributeAction(None, self._selected_entities(), self.name, self.previous_values))
 
         self._select(self._selected_entities())
-        self.state.updated('changed', type(entity), self._selected_entities())
 
 
 class NewCatalogue(_EntityBased):
@@ -163,19 +157,24 @@ class NewCatalogue(_EntityBased):
         self.uuid = None
 
     def _redo(self):
-        # the first time called it will create a new UUID
-        catalogue = tscat.create_catalogue("New Catalogue", author=os.getlogin(), uuid=self.uuid)
-        self.uuid = catalogue.uuid
+        def creation_callback(action: CreateEntityAction) -> None:
+            self.uuid = action.entity.uuid
+            self._select([self.uuid], tscat._Catalogue)
 
-        self.state.updated("inserted", tscat._Catalogue, [catalogue.uuid])
-        self._select([catalogue.uuid], tscat._Catalogue)
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(CreateEntityAction(creation_callback, tscat._Catalogue,
+                                          {
+                                              'name': "New Catalogue",
+                                              'author': os.getlogin(),
+                                              'uuid': self.uuid
+                                          }))
 
     def _undo(self):
-        catalogue = get_entity_from_uuid_safe(self.uuid)
-        catalogue.remove(permanently=True)
+        def remove_callback(_: RemoveEntityAction) -> None:
+            self._select(self._selected_entities())
 
-        self.state.updated("deleted", tscat._Catalogue, [catalogue.uuid])
-        self._select(self._selected_entities())
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(RemoveEntityAction(remove_callback, self.uuid, True))
 
 
 class NewEvent(_EntityBased):
@@ -187,23 +186,27 @@ class NewEvent(_EntityBased):
         self.uuid = None
 
     def _redo(self):
-        event = tscat.create_event(dt.datetime.now(), dt.datetime.now(), author=os.getlogin(), uuid=self.uuid)
-        self.uuid = event.uuid
+        from .tscat_driver.model import tscat_model
 
-        assert len(self._select_state.selected_catalogues) == 1
+        def creation_callback(action: CreateEntityAction) -> None:
+            self.uuid = action.entity.uuid
+            self._select([self.uuid], tscat._Event)
+            tscat_model.do(AddEventsToCatalogueAction(None, [self.uuid], self._select_state.selected_catalogues[0]))
 
-        catalogue = get_entity_from_uuid_safe(self._select_state.selected_catalogues[0])
-        tscat.add_events_to_catalogue(catalogue, event)
-
-        self.state.updated("inserted", tscat._Event, event.uuid)
-        self._select([event.uuid], tscat._Event)
+        tscat_model.do(CreateEntityAction(creation_callback, tscat._Event,
+                                          {
+                                              'start': dt.datetime.now(),
+                                              'stop': dt.datetime.now(),
+                                              'author': os.getlogin(),
+                                              'uuid': self.uuid
+                                          }))
 
     def _undo(self):
-        event = get_entity_from_uuid_safe(self.uuid)
-        event.remove(permanently=True)
+        def remove_callback(_: RemoveEntityAction) -> None:
+            self._select(self._selected_entities())
 
-        self.state.updated("deleted", tscat._Event, [event.uuid])
-        self._select(self._selected_entities())
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(RemoveEntityAction(remove_callback, self.uuid, True))
 
 
 class MoveRestoreTrashedEntity(_EntityBased):
@@ -284,7 +287,7 @@ class DeletePermanently(_EntityBased):
             entity.remove(permanently=True)
 
         self._select([])
-        self.state.updated("deleted", type(entity), self._selected_entities())
+        self.state.updated("removed", type(entity), self._selected_entities())
 
     def _undo(self):
         restored_uuids = []
@@ -337,7 +340,7 @@ class Import(_EntityBased):
             cat.remove(permanently=True)
 
         uuids = [c['uuid'] for c in self.import_dict["catalogues"]]
-        self.state.updated("deleted", tscat._Catalogue, uuids)
+        self.state.updated("removed", tscat._Catalogue, uuids)
         self._select(self._selected_entities())
 
 
@@ -350,24 +353,22 @@ class AddEventsToCatalogue(_EntityBased):
         self.setText(f'Add events to catalogue')
         self.catalogue_uuid = catalogue_uuid
 
-        catalogue = get_entity_from_uuid_safe(catalogue_uuid)
-        assert isinstance(catalogue, tscat._Catalogue)
-
-        # assigned only: we want to add an event to a dynamic catalogue which is also selected by the predicate
-        existing_events_uuids = set(event.uuid for event in tscat.get_events(catalogue, assigned_only=True))
-        self.event_uuids = list(set(event_uuids) - existing_events_uuids)
+        # when adding events to a catalogue events might already be present or indirectly selected by the predicate
+        # so in the first redo-call we add all events, the driver will check whether events are already present and
+        # return which ones have really been added
+        self.event_uuids = event_uuids
 
     def _redo(self):
-        catalogue = get_entity_from_uuid_safe(self.catalogue_uuid)
-        tscat.add_events_to_catalogue(catalogue, [get_entity_from_uuid_safe(uuid) for uuid in self.event_uuids])
+        def update_added_events(action: AddEventsToCatalogueAction):
+            self.event_uuids = action.uuids
+            self._select_state.selected_catalogues = [self.catalogue_uuid]
+            self._select(self.event_uuids, type=tscat._Event)
 
-        self.state.updated("changed", tscat._Catalogue, [self.catalogue_uuid])
-        self._select_state.selected_catalogues = [self.catalogue_uuid]
-        self._select(self.event_uuids, type=tscat._Event)
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(AddEventsToCatalogueAction(update_added_events, self.event_uuids, self.catalogue_uuid))
 
     def _undo(self):
-        catalogue = get_entity_from_uuid_safe(self.catalogue_uuid)
-        tscat.remove_events_from_catalogue(catalogue, [get_entity_from_uuid_safe(uuid) for uuid in self.event_uuids])
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(RemoveEventsFromCatalogueAction(None, self.event_uuids, self.catalogue_uuid))
 
-        self.state.updated("changed", tscat._Catalogue, [self.catalogue_uuid])
         self._select([self.catalogue_uuid], type=tscat._Catalogue)

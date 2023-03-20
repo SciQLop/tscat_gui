@@ -1,20 +1,20 @@
 import datetime as dt
 from typing import Union, Dict, Optional, List, Type, cast, Any, Callable
 
+import tscat
+import tscat.filtering
 from PySide6 import QtCore, QtWidgets
 
-import tscat
-
-from .utils.keyword_list import EditableKeywordListWidget
-from .utils.editable_label import EditableLabel
-from .utils.helper import get_entity_from_uuid_safe, AttributeNameValidator, IntDelegate, FloatDelegate, \
-    DateTimeDelegate, StrDelegate, BoolDelegate
+from .tscat_driver.actions import Action, GetCatalogueAction, SetAttributeAction, DeleteAttributeAction
 
 from .metadata import catalogue_meta_data
-from .state import AppState
-from .undo import NewAttribute, RenameAttribute, DeleteAttribute, SetAttributeValue
-
 from .predicate import SimplePredicateEditDialog
+from .state import AppState
+from .undo import NewAttribute, RenameAttribute, DeleteAttributeAction, SetAttributeValue, DeleteAttribute
+from .utils.editable_label import EditableLabel
+from .utils.helper import AttributeNameValidator, IntDelegate, FloatDelegate, \
+    DateTimeDelegate, StrDelegate, BoolDelegate
+from .utils.keyword_list import EditableKeywordListWidget
 
 
 class _UuidLabelDelegate(QtWidgets.QWidget):
@@ -152,12 +152,10 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
         return QtWidgets.QLabel(text.title())
 
     def __init__(self, title: str,
-                 uuids: List[str],
                  state: AppState,
                  parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(title, parent)
 
-        self.uuids = uuids
         self.attribute_name_labels: Dict[str, QtWidgets.QLabel] = {}
         self.state = state
         self.values: Dict = {}
@@ -186,8 +184,8 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
             value = values[attr]
 
             cls: Type[Union[_MultipleDifferentValuesDelegate, _UuidLabelDelegate, _PredicateDelegate,
-                            IntDelegate, StrDelegate, FloatDelegate,
-                            EditableKeywordListWidget, BoolDelegate, DateTimeDelegate]]
+            IntDelegate, StrDelegate, FloatDelegate,
+            EditableKeywordListWidget, BoolDelegate, DateTimeDelegate]]
 
             if isinstance(value, _MultipleDifferentValues):
                 if attr == 'start':
@@ -221,16 +219,14 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
 
 class FixedAttributesGroupBox(AttributesGroupBox):
     def __init__(self,
-                 uuids: List[str],
                  state: AppState,
                  parent: Optional[QtWidgets.QWidget] = None):
-        super().__init__("Global", uuids, state, parent)
+        super().__init__("Global", state, parent)
 
-        self.setup()
-
-    def setup(self):
+    def setup(self, entities: List[tscat._Catalogue or tscat._Event]) -> None:
         values = {}
-        for entity in map(get_entity_from_uuid_safe, self.uuids):
+
+        for entity in entities:
             for attr in entity.fixed_attributes().keys():
                 value = entity.__dict__[attr]
                 if attr in values:
@@ -256,18 +252,23 @@ class CustomAttributesGroupBox(AttributesGroupBox):
 
         return name
 
-    def __init__(self, uuids: List[str],
+    def __init__(self,
                  state: AppState,
                  parent: Optional[QtWidgets.QWidget] = None) -> None:
-        super().__init__("Custom", uuids, state, parent)
+        super().__init__("Custom", state, parent)
 
         self.all_attribute_names: List[str] = []
-        self.setup()
 
-    def setup(self) -> None:  # typing: ignore
-        assert len(self.uuids) == 1
+    def setup(self, entities: List[tscat._Catalogue or tscat._Event]) -> None:
+        if len(entities) > 1:
+            self.hide()
+            return
 
-        entity = get_entity_from_uuid_safe(self.uuids[0])
+        self.show()
+
+        print(entities)
+
+        entity = entities[0]
         self.all_attribute_names = list(entity.variable_attributes().keys()) + \
                                    list(entity.fixed_attributes().keys())
 
@@ -340,66 +341,58 @@ class CustomAttributesGroupBox(AttributesGroupBox):
 
 class CatalogueMetaDataGroupBox(AttributesGroupBox):
     def __init__(self,
-                 uuids: List[str],
                  state: AppState,
                  parent: Optional[QtWidgets.QWidget] = None):
-        super().__init__("Catalogue(s) information", uuids, state, parent)
+        super().__init__("Catalogue(s) information", state, parent)
 
-        self.setup()
+    def setup(self, entities: List[tscat._Catalogue or tscat._Event]) -> None:
 
-    def setup(self) -> None:
-        values = {}
+        print('meta-data setup')
+        catalogues = [entity for entity in entities if isinstance(entity, tscat._Catalogue)]
+        if len(catalogues) == 0:
+            self.hide()
+        else:
+            values = {}
+            self.show()
 
-        catalogues = [entity
-                      for entity in map(get_entity_from_uuid_safe, self.uuids)
-                      if isinstance(entity, tscat._Catalogue)]
+            for k, value_func in catalogue_meta_data.items():
+                value = value_func(catalogues)
+                values[k] = _ReadOnlyString(value)
 
-        for k, value_func in catalogue_meta_data.items():
-            value = value_func(catalogues)
-            values[k] = _ReadOnlyString(value)
-
-        super().setup_values(values)
+            super().setup_values(values)
 
 
 class _EntityEditWidget(QtWidgets.QWidget):
-    def __init__(self, uuids: List[str], state: AppState, parent=None) -> None:
+    def __init__(self, state: AppState, parent=None) -> None:
         super().__init__(parent)
 
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(5, 5, 5, 5)
 
-        self.meta_data: Optional[CatalogueMetaDataGroupBox] = None
+        self.meta_data = CatalogueMetaDataGroupBox(state)
+        layout.addWidget(self.meta_data)
 
-        if len(uuids) >= 1:
-            catalogue_uuids = []
-            for entity in map(get_entity_from_uuid_safe, uuids):
-                if isinstance(entity, tscat._Catalogue):
-                    catalogue_uuids.append(entity.uuid)
+        self.fixed_attributes = FixedAttributesGroupBox(state)
+        layout.addWidget(self.fixed_attributes)
 
-            if catalogue_uuids:
-                self.meta_data = CatalogueMetaDataGroupBox(catalogue_uuids, state)
-                layout.addWidget(self.meta_data)
-
-            self.fixed_attributes = FixedAttributesGroupBox(uuids, state)
-            layout.addWidget(self.fixed_attributes)
-
-            self.attributes: Optional[CustomAttributesGroupBox]
-            if len(uuids) == 1:
-                self.attributes = CustomAttributesGroupBox(uuids, state)
-                layout.addWidget(self.attributes)
-            else:
-                self.attributes = None
+        self.attributes: Optional[CustomAttributesGroupBox]
+        self.attributes = CustomAttributesGroupBox(state)
+        layout.addWidget(self.attributes)
 
         layout.addStretch()
 
         self.setLayout(layout)
 
-    def setup(self) -> None:
+    def setup(self, uuids: List[str]) -> None:
+
+        from .tscat_driver.model import tscat_model
+        entities = tscat_model.entities_from_uuids(uuids)
+
         if self.meta_data:
-            self.meta_data.setup()
+            self.meta_data.setup(entities)
         if self.attributes:
-            self.attributes.setup()
-        self.fixed_attributes.setup()
+            self.attributes.setup(entities)
+        self.fixed_attributes.setup(entities)
 
 
 class EntityEditView(QtWidgets.QScrollArea):
@@ -416,6 +409,9 @@ class EntityEditView(QtWidgets.QScrollArea):
 
         self.state.state_changed.connect(self.state_changed)
 
+        from .tscat_driver.model import tscat_model
+        tscat_model.action_done.connect(self._model_action_done)
+
     def state_changed(self, action: str,
                       _: Union[Type[tscat._Catalogue], Type[tscat._Event]],
                       uuids: List[str]) -> None:
@@ -425,22 +421,36 @@ class EntityEditView(QtWidgets.QScrollArea):
                     self.edit.deleteLater()
                     self.edit = None
 
-                self.edit = _EntityEditWidget(uuids, self.state)
-                self.setWidget(self.edit)
-
                 self.current_uuids = uuids
 
-        elif any(uuid in self.current_uuids for uuid in uuids):
-            if action == 'deleted':
-                for uuid in uuids:
-                    self.current_uuids.remove(uuid)  # remove uuid from current-list
-                if self.edit:
-                    if len(self.current_uuids) > 0:  # if there are still uuids present, just update - like in changed
-                        self.edit.setup()
-                    else:  # otherwise clear
-                        self.edit.deleteLater()
-                        self.edit = None
-                self.current_uuids = []
-            elif action == 'changed':
-                if self.edit:
-                    self.edit.setup()
+                if len(uuids) > 0:
+                    self.edit = _EntityEditWidget(self.state)
+                    self.setWidget(self.edit)
+                    self.edit.setup(self.current_uuids)
+        else:
+            print('unsupported (old) state-changed', action)
+
+
+    def _model_action_done(self, action: Action) -> None:
+        print('edit', action)
+
+        if isinstance(action, GetCatalogueAction):
+            if action.uuid in self.current_uuids:
+                self.edit.setup(self.current_uuids)
+        elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
+            if any(entity.uuid in self.current_uuids for entity in action.entities):
+                print('wut')
+                self.edit.setup(self.current_uuids)
+
+#                 if action == 'removed':
+#                     self.current_uuids = uuids
+#                     if self.edit:
+#                         if len(self.current_uuids) > 0:  # if there are still uuids present, just update - like in changed
+#                             setup = True
+#                         else:  # otherwise clear
+#                             self.edit.deleteLater()
+#                             self.edit = None
+#                 elif action == 'changed':
+#                     if self.edit:
+#
+#         if setup:
