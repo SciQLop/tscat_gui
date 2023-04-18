@@ -1,10 +1,11 @@
+from typing import Dict, Union
+
 import atexit
-from typing import Dict, Union, Sequence, Any, List, Type, Callable, Optional
+from PySide6.QtCore import QObject, QThread, Slot, Signal
 
-from PySide6.QtCore import QObject, QThread, Slot, Signal, Qt
-from tscat import get_catalogues, get_events, _Catalogue, _Event, create_catalogue
-
-from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEntityAction, RemoveEntityAction, SetAttributeAction, DeleteAttributeAction
+from tscat import _Catalogue, _Event
+from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEntityAction, RemoveEntityAction, \
+    SetAttributeAction, DeleteAttributeAction
 
 
 class _TscatDriverWorker(QThread):
@@ -60,7 +61,6 @@ class TscatDriver(QObject):
 
         elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
             for e in action.entities:
-                print('updating', e)
                 self._entity_cache[e.uuid] = e
 
         self.action_done.emit(action)

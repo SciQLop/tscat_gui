@@ -10,14 +10,16 @@ import sys
 from pathlib import Path
 from typing import Union, Sequence, Type, cast
 
-import tscat
 from PySide6 import QtWidgets, QtGui, QtCore
+from tscat import _Event, _Catalogue
 
 from .edit import EntityEditView
 from .model_base.constants import UUIDDataRole
 from .state import AppState
-from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash, DeletePermanently, NewEvent, Import
-from .utils.helper import get_entity_from_uuid_safe
+from .tscat_driver.actions import SaveAction, CreateEntityAction, AddEventsToCatalogueAction, SetAttributeAction, \
+    DeleteAttributeAction, Action, MoveToTrashAction
+from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash, DeletePermanently, NewEvent, Import, \
+    AddEventsToCatalogue
 
 
 class _TrashAlwaysTopOrBottomSortFilterModel(QtCore.QSortFilterProxyModel):
@@ -56,16 +58,17 @@ class TSCatGUI(QtWidgets.QWidget):
         self.programmatic_select = False
 
         self.__setup_ui()
+        from .tscat_driver.model import tscat_model
+        tscat_model.action_done.connect(self._external_signal_emission_changed)
 
-        self.state.state_changed.connect(self._external_signal_emission)
         self.state.state_changed.connect(self.__state_changed)
 
-    def __state_changed(self, action: str, type: Union[Type[tscat._Catalogue], Type[tscat._Event]],
+    def __state_changed(self, action: str, type: Union[Type[_Catalogue], Type[_Event]],
                         uuids: Sequence[str]) -> None:
         if action in ['active_select', 'passive_select']:
-            if type == tscat._Catalogue:
+            if type == _Catalogue:
                 indexes = list(map(self.catalogue_model.index_from_uuid, uuids))
-                # indexes = list(map(self.catalogue_sort_filter_model.mapFromSource, indexes))
+                indexes = list(map(self.catalogue_sort_filter_model.mapFromSource, indexes))
                 self.programmatic_select = True
                 self.catalogues_view.clearSelection()
                 for index in indexes:
@@ -76,60 +79,60 @@ class TSCatGUI(QtWidgets.QWidget):
                 # TODO use a combined model
                 if uuids:
                     from .tscat_driver.model import tscat_model
-                    model = tscat_model.catalog(uuids[0])
-                    # self.events_sort_model.setSourceModel(model)
-                    self.events_view.setModel(model)
-                    self.events_view.selectionModel().selectionChanged.connect(self.__current_event_changed,  # type: ignore
-                                                                              type=QtCore.Qt.DirectConnection)  # type: ignore
+                    self._current_event_model = tscat_model.catalog(uuids[0])
+                    self.events_sort_model.setSourceModel(self._current_event_model)
+                    self.events_view.selectionModel().selectionChanged.connect(
+                        self.__current_event_changed, type=QtCore.Qt.DirectConnection)  # type: ignore
                 else:
-                    # self.events_sort_model.setSourceModel(None)
-                    self.events_view.setModel(None)
+                    self.events_sort_model.setSourceModel(None)
             else:
-                pass
-                # indexes = list(map(self.events_model.index_from_uuid, uuids))
-                # indexes = list(map(self.events_sort_model.mapFromSource, indexes))
-                # self.programmatic_select = True
-                # self.events_view.clearSelection()
-                # for index in indexes:
-                #     self.events_view.selectionModel().select(index,
-                #                                              QtCore.QItemSelectionModel.SelectionFlag.Select |
-                #                                              QtCore.QItemSelectionModel.SelectionFlag.Rows)
-                # self.programmatic_select = False
+                indexes = list(map(self._current_event_model.index_from_uuid, uuids))
+                indexes = list(map(self.events_sort_model.mapFromSource, indexes))
+                self.programmatic_select = True
+                self.events_view.clearSelection()
+                for index in indexes:
+                    self.events_view.selectionModel().select(index,
+                                                             QtCore.QItemSelectionModel.SelectionFlag.Select |
+                                                             QtCore.QItemSelectionModel.SelectionFlag.Rows)
+                self.programmatic_select = False
 
-        if action == 'active_select':
-            self.move_to_trash_action.setEnabled(False)
-            self.restore_from_trash_action.setEnabled(False)
-            self.delete_action.setEnabled(False)
-            self.new_event_action.setEnabled(False)
-            self.export_action.setEnabled(False)
+            if action == 'active_select':
+                self.move_to_trash_action.setEnabled(False)
+                self.restore_from_trash_action.setEnabled(False)
+                self.delete_action.setEnabled(False)
+                self.new_event_action.setEnabled(False)
+                self.export_action.setEnabled(False)
 
-            if uuids:
-                if len(uuids) == 1:
-                    self.new_event_action.setEnabled(True)
+                if uuids:
+                    if len(uuids) == 1:
+                        self.new_event_action.setEnabled(True)
 
-                enable_restore = False
-                enable_move_to_trash = False
-                # for entity in map(get_entity_from_uuid_safe, uuids):
-                #     if entity.is_removed():
-                #         enable_restore |= True
-                #     else:
-                #         enable_move_to_trash |= True
+                    enable_restore = False
+                    enable_move_to_trash = False
 
-                self.restore_from_trash_action.setEnabled(enable_restore)
-                self.move_to_trash_action.setEnabled(enable_move_to_trash)
-                self.delete_action.setEnabled(True)
-                self.export_action.setEnabled(True)
+                    from .tscat_driver.model import tscat_model
+                    for entity in tscat_model.entities_from_uuids(uuids):
+                        if entity.is_removed():
+                            enable_restore |= True
+                        else:
+                            enable_move_to_trash |= True
+
+                    self.restore_from_trash_action.setEnabled(enable_restore)
+                    self.move_to_trash_action.setEnabled(enable_move_to_trash)
+                    self.delete_action.setEnabled(True)
+                    self.export_action.setEnabled(True)
 
     def __current_event_changed(self, _: QtCore.QModelIndex, __: QtCore.QModelIndex) -> None:
         if not self.programmatic_select:
             uuids = [index.data(UUIDDataRole) for index in self.events_view.selectedIndexes() if index.column() == 0]
-            self.state.updated('active_select', tscat._Event, uuids)
+            self.state.updated('active_select', _Event, uuids)
+            self.events_selected.emit(uuids)
 
     def __catalogue_selection_changed(self, _: QtCore.QItemSelection, __: QtCore.QItemSelection) -> None:
         if not self.programmatic_select:
-            print('selection', len(self.catalogues_view.selectedIndexes()))
             uuids = [index.data(UUIDDataRole) for index in self.catalogues_view.selectedIndexes()]
-            self.state.updated('active_select', tscat._Catalogue, uuids)
+            self.state.updated('active_select', _Catalogue, uuids)
+            self.catalogues_selected.emit(uuids)
 
     def __create_undo_redo_action_menu_on_toolbutton(self,
                                                      index_range: range,
@@ -169,11 +172,8 @@ class TSCatGUI(QtWidgets.QWidget):
 
     def __refresh_current_selection(self) -> None:
         current_selection = self.state.select_state()
-        # self.catalogue_model.reset()
-        # self.events_model.reset()
-
-        if current_selection.type == tscat._Event:
-            self.state.updated('passive_select', tscat._Catalogue, current_selection.selected_catalogues)
+        if current_selection.type == _Event:
+            self.state.updated('passive_select', _Catalogue, current_selection.selected_catalogues)
         self.state.updated('active_select', current_selection.type, current_selection.selected)
 
     def __import_from_file(self) -> None:
@@ -186,7 +186,7 @@ class TSCatGUI(QtWidgets.QWidget):
             try:
                 with open(filename) as f:
                     data = f.read()
-                    import_dict = tscat.canonicalize_json_import(data)
+                    import_dict = canonicalize_json_import(data)
                     self.state.push_undo_command(Import, filename, import_dict)
             except Exception as e:
                 QtWidgets.QMessageBox.critical(self,
@@ -206,9 +206,9 @@ class TSCatGUI(QtWidgets.QWidget):
 
             try:
                 with open(filename, 'w+') as f:
-                    catalogues = [get_entity_from_uuid_safe(uuid)
+                    catalogues = [get_entggity_from_uuid_safe(uuid)
                                   for uuid in self.state.select_state().selected_catalogues]
-                    json = tscat.export_json(catalogues)  # type: ignore
+                    json = export_json(catalogues)  # type: ignore
                     f.write(json)
                 QtWidgets.QMessageBox.information(self,
                                                   "Catalogue export",
@@ -221,22 +221,18 @@ class TSCatGUI(QtWidgets.QWidget):
 
     def __setup_ui(self) -> None:
         # Event Model and View
-        # self.events_model = EventModel(self.state, self)
         self.events_sort_model = QtCore.QSortFilterProxyModel()
-        # self.events_sort_model.setSourceModel(self.events_model)
 
         self.events_view = QtWidgets.QTableView()
         self.events_view.setMinimumSize(1000, 500)
         self.events_view.setSortingEnabled(True)
         self.events_view.sortByColumn(0, QtCore.Qt.SortOrder.AscendingOrder)
 
-        # self.events_view.setModel(self.events_sort_model)
+        self.events_view.setModel(self.events_sort_model)
         self.events_view.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
         self.events_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)  # type: ignore
         self.events_view.setDragEnabled(True)
         self.events_view.setDragDropMode(QtWidgets.QTreeView.DragDropMode.DragOnly)
-        # self.events_view.selectionModel().selectionChanged.connect(self.__current_event_changed,  # type: ignore
-        #                                                           type=QtCore.Qt.DirectConnection)  # type: ignore
 
         # Edit View
         self.edit_view = EntityEditView(self.state, self)
@@ -250,6 +246,10 @@ class TSCatGUI(QtWidgets.QWidget):
 
         from .tscat_driver.model import tscat_model
         self.catalogue_model = tscat_model.tscat_root()
+        self.catalogue_model.events_dropped_on_catalogue.connect(lambda uuid, event_list:
+                                                                 self.state.push_undo_command(AddEventsToCatalogue,
+                                                                                              uuid,
+                                                                                              event_list))
 
         self.catalogues_view = QtWidgets.QTreeView()
         self.catalogues_view.setMinimumSize(300, 900)
@@ -265,8 +265,7 @@ class TSCatGUI(QtWidgets.QWidget):
         self.catalogue_sort_filter_model.setFilterCaseSensitivity(
             QtCore.Qt.CaseSensitivity.CaseInsensitive)  # type: ignore
 
-        # self.catalogues_view.setModel(self.catalogue_sort_filter_model)
-        self.catalogues_view.setModel(self.catalogue_model)
+        self.catalogues_view.setModel(self.catalogue_sort_filter_model)
         self.catalogues_view.setSortingEnabled(True)
         self.catalogues_view.sortByColumn(0, QtCore.Qt.SortOrder.AscendingOrder)  # type: ignore
 
@@ -407,44 +406,53 @@ class TSCatGUI(QtWidgets.QWidget):
         layout.addWidget(splitter)
         self.setLayout(layout)
 
-    def _external_signal_emission(self, action: str, type: Union[tscat._Catalogue, tscat._Event], uuids: Sequence[str]):
-        if action == "active_select":
-            if type == tscat._Catalogue:
-                self.catalogues_selected.emit(uuids)
+    def _external_signal_emission_changed(self, action: Action) -> None:
+        if isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
+            if isinstance(action.entities[0], _Catalogue):
+                self.catalogues_changed.emit([e.uuid for e in action.entities])
             else:
-                self.events_selected.emit(uuids)
-
-        elif action == 'changed':
-            if type == tscat._Catalogue:
-                self.catalogues_changed.emit(uuids)
-            else:
-                self.events_changed.emit(uuids)
+                self.events_changed.emit([e.uuid for e in action.entities])
 
     def update_event_range(self, uuid: str, start: dt.datetime, stop: dt.datetime) -> None:
-        event = get_entity_from_uuid_safe(uuid)
-        event.start = start
-        event.stop = stop
-        self.state.updated('changed', tscat._Event, [uuid])
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(SetAttributeAction(None, [uuid], 'start', [start]))
+        tscat_model.do(SetAttributeAction(None, [uuid], 'stop', [stop]))
 
-    def create_event(self, start: dt.datetime, stop: dt.datetime, author: str, catalogue_uuid: str) -> tscat._Event:
-        catalogue = get_entity_from_uuid_safe(catalogue_uuid)
-        assert isinstance(catalogue, tscat._Catalogue)
-        with tscat.Session() as s:
-            event = s.create_event(start, stop, author)
-            tscat.add_events_to_catalogue(catalogue, event)
+    def create_event(self, start: dt.datetime, stop: dt.datetime, author: str, catalogue_uuid: str) -> _Event:
+        event_loop = QtCore.QEventLoop()
+        entity = None
 
-        self.state.updated('inserted', tscat._Event, [event.uuid])
+        def added_event(_: AddEventsToCatalogueAction) -> None:
+            event_loop.quit()
 
-        return event
+        from .tscat_driver.model import tscat_model
+
+        def creation_callback(action: CreateEntityAction) -> None:
+            nonlocal entity
+            entity = action.entity
+            tscat_model.do(AddEventsToCatalogueAction(added_event, [action.entity.uuid], catalogue_uuid))
+
+        tscat_model.do(CreateEntityAction(creation_callback, _Event,
+                                          {
+                                              'start': start,
+                                              'stop': stop,
+                                              'author': author,
+                                          }))
+
+        event_loop.exec()
+
+        return entity
 
     def move_to_trash(self, uuid: str) -> None:
-        entity = get_entity_from_uuid_safe(uuid)
-        entity.remove()
-        self.state.updated('moved', type(entity), [uuid])
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(MoveToTrashAction([uuid]))
 
     def save(self) -> None:
-        tscat.save()
-        self.state.set_undo_stack_clean()
+        def clear_undo_stack(_: SaveAction) -> None:
+            self.state.set_undo_stack_clean()
+
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(SaveAction(clear_undo_stack))
 
 
 def main():

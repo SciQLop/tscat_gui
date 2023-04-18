@@ -10,8 +10,7 @@ from PySide6 import QtGui
 
 from .state import AppState
 from .tscat_driver.actions import CreateEntityAction, RemoveEntityAction, SetAttributeAction, DeleteAttributeAction, \
-    AddEventsToCatalogueAction, RemoveEventsFromCatalogueAction
-from .utils.helper import get_entity_from_uuid_safe
+    AddEventsToCatalogueAction, RemoveEventsFromCatalogueAction, MoveToTrashAction, RestoreFromTrashAction
 
 
 class _EntityBased(QtGui.QUndoCommand):
@@ -214,17 +213,14 @@ class MoveRestoreTrashedEntity(_EntityBased):
         super().__init__(state, parent)
 
     def remove(self):
-        for entity in self._mapped_selected_entities():
-            entity.remove()
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(MoveToTrashAction(None, self._selected_entities()))
 
-        self.state.updated("moved", type(entity), self._selected_entities())
         self._select(self._selected_entities())
 
     def restore(self):
-        for entity in self._mapped_selected_entities():
-            entity.restore()
-
-        self.state.updated("moved", type(entity), self._selected_entities())
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(RestoreFromTrashAction(None, self._selected_entities()))
         self._select(self._selected_entities())
 
 
