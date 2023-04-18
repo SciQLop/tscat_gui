@@ -1,57 +1,101 @@
-from typing import Dict, Any, List
+import pickle
+from typing import Dict, Any, Union
 
-from PySide6.QtCore import QModelIndex, QAbstractItemModel, QPersistentModelIndex, Qt
-from tscat import _Event, _Catalogue
+from PySide6.QtCore import QModelIndex, QAbstractItemModel, QPersistentModelIndex, Qt, QMimeData, Signal
+from tscat import _Catalogue
 
-from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEntityAction, RemoveEntityAction, SetAttributeAction, DeleteAttributeAction
+from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEntityAction, RemoveEntityAction, \
+    SetAttributeAction, DeleteAttributeAction, MoveToTrashAction, RestoreFromTrashAction
 from .catalog_model import CatalogModel
 from .driver import tscat_driver
-from .nodes import Node, NamedNode, CatalogNode
+from .nodes import Node, NamedNode, CatalogNode, TrashNode
 from ..model_base.constants import UUIDDataRole
 
 
 class TscatRootModel(QAbstractItemModel):
+    events_dropped_on_catalogue = Signal(str, list)
+
     def __init__(self):
         super().__init__()
-        self._root = NamedNode([])
+        self._root = NamedNode()
+        self._trash = TrashNode()
+
+        self._root.append_child(self._trash)
+
         self._catalogues: Dict[str, CatalogModel] = {}
 
         tscat_driver.action_done.connect(self._driver_action_done)
 
         tscat_driver.do(GetCataloguesAction(None, False))
+        tscat_driver.do(GetCataloguesAction(None, True))
+
+    def _trash_index(self) -> QModelIndex:
+        return self.index(0, 0, QModelIndex())
 
     def _driver_action_done(self, action: Action) -> None:
         if isinstance(action, GetCataloguesAction):
-            self.beginResetModel()
-            self._root.children = []
-            for c in action.catalogues:
-                node = CatalogNode(c)
-                self._root.children.append(node)
-            self.endResetModel()
+            if action.removed_items:
+                self.beginRemoveRows(self._trash_index(), 0, len(self._trash.children) - 1)
+                self._trash.set_children([])
+                self.endRemoveRows()
+
+                self.beginInsertRows(self._trash_index(), 0, len(action.catalogues) - 1)
+                self._trash.set_children(list(map(CatalogNode, action.catalogues)))
+                self.endInsertRows()
+            else:
+                self.beginResetModel()
+                self._root.set_children([self._trash])
+                self._root.append_children(list(map(CatalogNode, action.catalogues)))
+                self.endResetModel()
 
         elif isinstance(action, GetCatalogueAction):
             for row, child in enumerate(self._root.children):
                 if child.uuid == action.uuid:
-                    break
-            else:
-                return
+                    index = self.index(row, 0, QModelIndex())
+                    self.dataChanged.emit(index, index)
+                    return
 
-            index = self.index(row, 0, QModelIndex())
-            self.dataChanged.emit(index, index)
+            for row, child in enumerate(self._trash.children):
+                if child.uuid == action.uuid:
+                    index = self.index(row, 0, self._trash_index())
+                    self.dataChanged.emit(index, index)
 
         elif isinstance(action, CreateEntityAction):
             if isinstance(action.entity, _Catalogue):
-                self.beginInsertRows(QModelIndex(), len(self._root.children), len(self._root.children) + 1)
+                self.beginInsertRows(QModelIndex(), len(self._root.children), len(self._root.children))
                 node = CatalogNode(action.entity)
-                self._root.children.append(node)
+                self._root.append_child(node)
                 self.endInsertRows()
 
         elif isinstance(action, RemoveEntityAction):
-            for row, c in enumerate(self._root.children[::-1]):
+            for row, c in reversed(list(enumerate(self._root.children))):
                 if c.uuid == action.uuid:
                     self.beginRemoveRows(QModelIndex(), row, row)
-                    self._root.children.remove(c)
+                    self._root.remove_child(c)
                     self.endRemoveRows()
+
+        elif isinstance(action, MoveToTrashAction):
+            for row, c in reversed(list(enumerate(self._root.children))):
+                if c.uuid in action.uuids:
+                    self.beginRemoveRows(QModelIndex(), row, row)
+                    self._root.remove_child(c)
+                    self.endRemoveRows()
+
+                    self.beginInsertRows(self._trash_index(), len(self._trash.children), len(self._trash.children))
+                    self._trash.append_child(c)
+                    self.endInsertRows()
+                    print('moving to trash', c, c.uuid)
+
+        elif isinstance(action, RestoreFromTrashAction):
+            for row, c in reversed(list(enumerate(self._trash.children))):
+                if c.uuid in action.uuids:
+                    self.beginRemoveRows(self._trash_index(), row, row)
+                    self._trash.remove_child(c)
+                    self.endRemoveRows()
+
+                    self.beginInsertRows(QModelIndex(), len(self._root.children), len(self._root.children))
+                    self._root.append_child(c)
+                    self.endInsertRows()
 
         elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
             for e in filter(lambda x: isinstance(x, _Catalogue), action.entities):
@@ -59,6 +103,12 @@ class TscatRootModel(QAbstractItemModel):
                     if child.uuid == e.uuid:
                         child.node = e
                         index = self.index(row, 0, QModelIndex())
+                        self.dataChanged.emit(index, index)
+
+                for row, child in enumerate(self._trash.children):
+                    if child.uuid == e.uuid:
+                        child.node = e
+                        index = self.index(row, 0, self._trash_index())
                         self.dataChanged.emit(index, index)
 
     def catalog(self, uuid: str) -> CatalogModel:
@@ -71,7 +121,7 @@ class TscatRootModel(QAbstractItemModel):
 
             catalogue_model = CatalogModel(child)
             self._catalogues[uuid] = catalogue_model
-            tscat_driver.do(GetCatalogueAction(None, uuid=uuid))
+            tscat_driver.do(GetCatalogueAction(None, removed_items=False, uuid=uuid))
 
         return self._catalogues[uuid]
 
@@ -92,6 +142,7 @@ class TscatRootModel(QAbstractItemModel):
                 parent_item: Node = self._root
             else:
                 parent_item: Node = parent.internalPointer()  # type: ignore
+
             child_item: Node = parent_item.children[row]
             if child_item is not None:
                 return self.createIndex(row, column, child_item)
@@ -133,13 +184,35 @@ class TscatRootModel(QAbstractItemModel):
 
     def flags(self, index: QModelIndex | QPersistentModelIndex) -> int:
         if index.isValid():
-            flags = Qt.ItemIsSelectable | Qt.ItemIsEnabled
             item: Node = index.internalPointer()
-            flags |= Qt.ItemIsDragEnabled | Qt.ItemIsDropEnabled
-            return flags
+            return item.flags()
         return Qt.NoItemFlags
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.DisplayRole) -> Any:  # type: ignore
         if role == Qt.DisplayRole:  # type: ignore
             return "Catalogues"
         return None
+
+    def supportedDragActions(self) -> Qt.DropAction:
+        return Qt.DropAction.CopyAction
+
+    def canDropMimeData(self, data: QMimeData, action: Qt.DropAction,
+                        row: int, column: int,
+                        parent: Union[QModelIndex, QPersistentModelIndex]) -> bool:
+        if not data.hasFormat('application/x-tscat-event-uuid-list'):
+            return False
+        return True
+
+    def dropMimeData(self, data: QMimeData, action: Qt.DropAction,
+                     row: int, column: int,
+                     parent: Union[QModelIndex, QPersistentModelIndex]) -> bool:
+        if not self.canDropMimeData(data, action, row, column, parent):
+            return False
+
+        if action == Qt.DropAction.IgnoreAction:
+            return True
+
+        self.events_dropped_on_catalogue.emit(parent.data(UUIDDataRole),
+                                              pickle.loads(data.data('application/x-tscat-event-uuid-list')))
+
+        return True

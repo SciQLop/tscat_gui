@@ -266,8 +266,6 @@ class CustomAttributesGroupBox(AttributesGroupBox):
 
         self.show()
 
-        print(entities)
-
         entity = entities[0]
         self.all_attribute_names = list(entity.variable_attributes().keys()) + \
                                    list(entity.fixed_attributes().keys())
@@ -347,7 +345,6 @@ class CatalogueMetaDataGroupBox(AttributesGroupBox):
 
     def setup(self, entities: List[tscat._Catalogue or tscat._Event]) -> None:
 
-        print('meta-data setup')
         catalogues = [entity for entity in entities if isinstance(entity, tscat._Catalogue)]
         if len(catalogues) == 0:
             self.hide()
@@ -427,19 +424,18 @@ class EntityEditView(QtWidgets.QScrollArea):
                     self.edit = _EntityEditWidget(self.state)
                     self.setWidget(self.edit)
                     self.edit.setup(self.current_uuids)
+        elif action == 'passive_select':
+            pass
         else:
             print('unsupported (old) state-changed', action)
 
 
     def _model_action_done(self, action: Action) -> None:
-        print('edit', action)
-
         if isinstance(action, GetCatalogueAction):
             if action.uuid in self.current_uuids:
                 self.edit.setup(self.current_uuids)
         elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
             if any(entity.uuid in self.current_uuids for entity in action.entities):
-                print('wut')
                 self.edit.setup(self.current_uuids)
 
 #                 if action == 'removed':

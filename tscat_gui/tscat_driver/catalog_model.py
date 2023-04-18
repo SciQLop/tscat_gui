@@ -4,9 +4,11 @@ from typing import Optional, Union, List, Sequence, Any
 from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, QPersistentModelIndex, QMimeData
 from tscat import _Event
 
-from .actions import GetCatalogueAction, Action, SetAttributeAction, DeleteAttributeAction, AddEventsToCatalogueAction, RemoveEntityAction, RemoveEventsFromCatalogueAction
+from .actions import GetCatalogueAction, Action, SetAttributeAction, DeleteAttributeAction, \
+    AddEventsToCatalogueAction, RemoveEntityAction, RemoveEventsFromCatalogueAction, MoveToTrashAction, \
+    RestoreFromTrashAction
 from .driver import tscat_driver
-from .nodes import CatalogNode, EventNode
+from .nodes import CatalogNode, EventNode, TrashNode
 from ..model_base.constants import UUIDDataRole, EntityRole
 
 
@@ -16,46 +18,87 @@ class CatalogModel(QAbstractTableModel):
     def __init__(self, root: CatalogNode):
         super().__init__()
         self._root = root
+        self._trash = TrashNode()
         tscat_driver.action_done.connect(self._driver_action_done)
 
     def _driver_action_done(self, action: Action) -> None:
         if isinstance(action, GetCatalogueAction):
             if action.uuid == self._root.uuid:
-                self.beginResetModel()
-                self._root.children = list(map(EventNode, action.events))
-                self.endResetModel()
+                if action.removed_items:
+                    self._trash.set_children(list(map(EventNode, action.events)))
+                else:
+                    self.beginResetModel()
+                    self._root.set_children(list(map(EventNode, action.events)))
+                    self.endResetModel()
 
         elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
             for e in filter(lambda x: isinstance(x, _Event), action.entities):
-                for row, child in enumerate(self._root.children):
-                    if child.uuid == e.uuid:
-                        child.node = e
-                        index_left = self.index(row, 0, QModelIndex())
-                        index_right = self.index(row, self.columnCount(), QModelIndex())
-                        self.dataChanged.emit(index_left, index_right)
+                for node in (self._root, self._trash):
+                    for row, child in enumerate(node.children):
+                        if child.uuid == e.uuid:
+                            child.node = e
+
+                            if node == self._root:  # update model only for visible nodes
+                                index_left = self.index(row, 0, QModelIndex())
+                                index_right = self.index(row, self.columnCount(), QModelIndex())
+                                self.dataChanged.emit(index_left, index_right)
 
         elif isinstance(action, AddEventsToCatalogueAction):
             if action.catalogue_uuid == self._root.uuid:
+                nodes = list(map(EventNode, map(tscat_driver.entity_from_uuid, action.uuids)))
+
+                removed_nodes = list(filter(lambda x: x.node.is_removed(), nodes))
+                nodes = list(filter(lambda x: not x.node.is_removed(), nodes))
+
                 self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount() + len(action.uuids) - 1)
-                self._root.children += list(map(EventNode, map(tscat_driver.entity_from_uuid, action.uuids)))
+                self._root.append_children(nodes)
                 self.endInsertRows()
+
+                self._trash.append_children(removed_nodes)
 
         elif isinstance(action, RemoveEventsFromCatalogueAction):
             if action.catalogue_uuid == self._root.uuid:
-                for row, c in enumerate(self._root.children[::-1]):
+                for row, c in reversed(list(enumerate(self._root.children))):
                     for e in action.uuids:
                         if c.uuid == e:
                             self.beginRemoveRows(QModelIndex(), row, row)
-                            self._root.children.remove(c)
+                            self._root.remove_child(c)
                             self.endRemoveRows()
+                for c in self._trash.children[:]:
+                    for e in action.uuids:
+                        if c.uuid == e:
+                            self._trash.remove_child(c)
 
         elif isinstance(action, RemoveEntityAction):
-            for row, c in enumerate(self._root.children[::-1]):
+            for row, c in reversed(list(enumerate(self._root.children))):
                 if c.uuid == action.uuid:
                     self.beginRemoveRows(QModelIndex(), row, row)
-                    self._root.children.remove(c)
+                    self._root.remove_child(c)
                     self.endRemoveRows()
 
+            for c in self._trash.children[:]:
+                if c.uuid == action.uuid:
+                    self._trash.remove_child(c)
+
+        elif isinstance(action, MoveToTrashAction):
+            for row, c in reversed(list(enumerate(self._root.children))):
+                if c.uuid in action.uuids:
+                    self.beginRemoveRows(QModelIndex(), row, row)
+                    self._root.remove_child(c)
+                    self.endRemoveRows()
+                    self._trash.append_child(c)
+
+        elif isinstance(action, RestoreFromTrashAction):
+            nodes = []
+            for c in self._trash.children[:]:
+                if c.uuid in action.uuids:
+                    self._trash.remove_child(c)
+                    nodes.append(c)
+
+            if nodes:
+                self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount() + len(nodes) - 1)
+                self._root.append_children(nodes)
+                self.endInsertRows()
 
     def headerData(self, section: int, orientation: Qt.Orientation,
                    role: int = Qt.DisplayRole) -> Any:  # type: ignore
@@ -75,7 +118,9 @@ class CatalogModel(QAbstractTableModel):
 
     def flags(self, index: QModelIndex) -> Qt.ItemFlags:  # type: ignore
         if index.isValid():
-            return super().flags(index) | Qt.ItemIsDragEnabled  # type: ignore
+            node = self._root.children[index.row()]
+            return node.flags()
+
         return Qt.NoItemFlags  # type: ignore
 
     def data(self, index: Union[QModelIndex, QPersistentModelIndex],

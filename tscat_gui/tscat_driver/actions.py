@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Union, Type, Any
 
 from tscat import _Catalogue, _Event, get_catalogues, get_events, create_catalogue, add_events_to_catalogue, \
-    create_event, remove_events_from_catalogue
+    create_event, remove_events_from_catalogue, save
 from tscat.filtering import UUID
 
 
@@ -19,7 +19,11 @@ class Action(ABC):
     def _entity(uuid: str) -> Union[_Catalogue or _Event]:
         entities = get_catalogues(UUID(uuid))
         if len(entities) == 0:
-            entities = get_events(UUID(uuid))
+            entities = get_catalogues(UUID(uuid), removed_items=True)
+            if len(entities) == 0:
+                entities = get_events(UUID(uuid))
+                if len(entities) == 0:
+                    entities = get_events(UUID(uuid), removed_items=True)
 
         assert len(entities) == 1
 
@@ -42,11 +46,12 @@ class GetCataloguesAction(Action):
 @dataclass
 class GetCatalogueAction(Action):
     uuid: str
+    removed_items: bool = False,
     events: list[_Event] = field(default_factory=list)
 
     def action(self) -> None:
         catalogue = get_catalogues(UUID(self.uuid))[0]
-        self.events = get_events(catalogue)
+        self.events = get_events(catalogue, removed_items=self.removed_items)
 
 
 @dataclass
@@ -135,4 +140,34 @@ class DeleteAttributeAction(EntityChangeAction):
     def action(self) -> None:
         for entity in map(self._entity, self.uuids):
             entity.__delattr__(self.name)
+            self.entities += [entity]
+
+
+@dataclass
+class SaveAction(Action):
+    def action(self) -> None:
+        save()
+
+
+@dataclass
+class MoveToTrashAction(Action):
+    uuids: list[str]
+
+    entities: list = field(default_factory=list)
+
+    def action(self) -> None:
+        for entity in map(self._entity, self.uuids):
+            entity.remove()
+            self.entities += [entity]
+
+
+@dataclass
+class RestoreFromTrashAction(Action):
+    uuids: list[str]
+
+    entities: list = field(default_factory=list)
+
+    def action(self) -> None:
+        for entity in map(self._entity, self.uuids):
+            entity.restore()
             self.entities += [entity]
