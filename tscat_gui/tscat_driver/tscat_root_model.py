@@ -4,8 +4,8 @@ from typing import Dict, Any, Union
 from PySide6.QtCore import QModelIndex, QAbstractItemModel, QPersistentModelIndex, Qt, QMimeData, Signal
 from tscat import _Catalogue
 
-from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEntityAction, RemoveEntityAction, \
-    SetAttributeAction, DeleteAttributeAction, MoveToTrashAction, RestoreFromTrashAction
+from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEntityAction, RemoveEntitiesAction, \
+    SetAttributeAction, DeleteAttributeAction, MoveToTrashAction, RestoreFromTrashAction, ImportCanonicalizedDictAction
 from .catalog_model import CatalogModel
 from .driver import tscat_driver
 from .nodes import Node, NamedNode, CatalogNode, TrashNode
@@ -67,9 +67,9 @@ class TscatRootModel(QAbstractItemModel):
                 self._root.append_child(node)
                 self.endInsertRows()
 
-        elif isinstance(action, RemoveEntityAction):
+        elif isinstance(action, RemoveEntitiesAction):
             for row, c in reversed(list(enumerate(self._root.children))):
-                if c.uuid == action.uuid:
+                if c.uuid in action.uuids:
                     self.beginRemoveRows(QModelIndex(), row, row)
                     self._root.remove_child(c)
                     self.endRemoveRows()
@@ -110,6 +110,13 @@ class TscatRootModel(QAbstractItemModel):
                         child.node = e
                         index = self.index(row, 0, self._trash_index())
                         self.dataChanged.emit(index, index)
+
+        elif isinstance(action, ImportCanonicalizedDictAction):
+            self.beginInsertRows(QModelIndex(),
+                                 len(self._root.children),
+                                 len(self._root.children) + len(action.catalogues) - 1)
+            self._root.append_children(list(map(CatalogNode, action.catalogues)))
+            self.endInsertRows()
 
     def catalog(self, uuid: str) -> CatalogModel:
         if uuid not in self._catalogues:

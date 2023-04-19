@@ -4,8 +4,8 @@ import atexit
 from PySide6.QtCore import QObject, QThread, Slot, Signal
 
 from tscat import _Catalogue, _Event
-from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEntityAction, RemoveEntityAction, \
-    SetAttributeAction, DeleteAttributeAction
+from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEntityAction, RemoveEntitiesAction, \
+    SetAttributeAction, DeleteAttributeAction, ImportCanonicalizedDictAction
 
 
 class _TscatDriverWorker(QThread):
@@ -55,13 +55,18 @@ class TscatDriver(QObject):
         elif isinstance(action, CreateEntityAction):
             self._entity_cache[action.entity.uuid] = action.entity
 
-        elif isinstance(action, RemoveEntityAction):
-            if action.uuid in self._entity_cache:
-                del self._entity_cache[action.uuid]
+        elif isinstance(action, RemoveEntitiesAction):
+            for uuid in action.uuids:
+                if uuid in self._entity_cache:
+                    del self._entity_cache[uuid]
 
         elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
             for e in action.entities:
                 self._entity_cache[e.uuid] = e
+
+        elif isinstance(action, ImportCanonicalizedDictAction):
+            for c in action.catalogues:
+                self._entity_cache[c.uuid] = c
 
         self.action_done.emit(action)
 

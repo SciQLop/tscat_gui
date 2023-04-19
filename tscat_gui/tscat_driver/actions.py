@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Union, Type, Any
 
 from tscat import _Catalogue, _Event, get_catalogues, get_events, create_catalogue, add_events_to_catalogue, \
-    create_event, remove_events_from_catalogue, save
+    create_event, remove_events_from_catalogue, save, canonicalize_json_import, import_canonicalized_dict
 from tscat.filtering import UUID
 
 
@@ -69,13 +69,13 @@ class CreateEntityAction(Action):
 
 
 @dataclass
-class RemoveEntityAction(Action):
-    uuid: str
+class RemoveEntitiesAction(Action):
+    uuids: list[str]
     permanently: bool
 
     def action(self) -> None:
-        entity = self._entity(self.uuid)
-        entity.remove(permanently=self.permanently)
+        for entity in map(self._entity, self.uuids):
+            entity.remove(permanently=self.permanently)
 
 
 @dataclass
@@ -171,3 +171,29 @@ class RestoreFromTrashAction(Action):
         for entity in map(self._entity, self.uuids):
             entity.restore()
             self.entities += [entity]
+
+
+@dataclass
+class CanonicalizeImportAction(Action):
+    filename: str
+
+    import_dict: Any = None
+    result: Union[Exception or None] = None
+
+    def action(self) -> None:
+        try:
+            with open(self.filename) as f:
+                data = f.read()
+                self.import_dict = canonicalize_json_import(data)
+        except Exception as e:
+            self.result = e
+
+
+@dataclass
+class ImportCanonicalizedDictAction(Action):
+    import_dict: Any
+
+    catalogues: list = field(default_factory=list)
+
+    def action(self) -> None:
+        self.catalogues = import_canonicalized_dict(self.import_dict)
