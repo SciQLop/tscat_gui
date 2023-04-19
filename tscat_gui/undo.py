@@ -2,8 +2,7 @@ import abc
 import datetime as dt
 import os
 from copy import deepcopy
-from dataclasses import dataclass
-from typing import Union, Optional, Type, List, Dict
+from typing import Union, Optional, Type, List
 
 import tscat
 from PySide6 import QtGui
@@ -11,7 +10,7 @@ from PySide6 import QtGui
 from .state import AppState
 from .tscat_driver.actions import CreateEntityAction, RemoveEntitiesAction, SetAttributeAction, DeleteAttributeAction, \
     AddEventsToCatalogueAction, RemoveEventsFromCatalogueAction, MoveToTrashAction, RestoreFromTrashAction, \
-    ImportCanonicalizedDictAction
+    ImportCanonicalizedDictAction, DeletePermanentlyAction, RestorePermanentlyDeletedAction, _DeletedEntity
 
 
 class _EntityBased(QtGui.QUndoCommand):
@@ -251,64 +250,30 @@ class RestoreEntityFromTrash(MoveRestoreTrashedEntity):
         self.remove()
 
 
-@dataclass
-class _DeletedEntity:
-    type: Union[Type[tscat._Catalogue], Type[tscat._Event]]
-    in_trash: bool
-    data: Dict
-    linked_uuids: List[str]
-
-
 class DeletePermanently(_EntityBased):
     def __init__(self, state: AppState, parent=None):
         super().__init__(state, parent)
 
+        # keep the action and its data to use it in case of undo
+        self._deleted_entities: List[_DeletedEntity] = []
+
         self.setText(f'Delete {self._select_state.type} permanently')
 
-        self.deleted_entities: List[_DeletedEntity] = []
-
     def _redo(self):
-        for entity in self._mapped_selected_entities():
-            if type(entity) == tscat._Catalogue:
-                linked_uuids = [e.uuid for e in tscat.get_events(entity, assigned_only=True)]
-            else:
-                linked_uuids = [e.uuid for e in tscat.get_catalogues(entity)]
+        def action_callback(action: DeletePermanentlyAction) -> None:
+            self._deleted_entities = action.deleted_entities
+            self._select([])
 
-            deleted_entity = _DeletedEntity(
-                type(entity),
-                entity.is_removed(),
-                entity.dump(),
-                linked_uuids)
-            self.deleted_entities.append(deleted_entity)
-
-            entity.remove(permanently=True)
-
-        self._select([])
-        self.state.updated("removed", type(entity), self._selected_entities())
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(DeletePermanentlyAction(action_callback, self._selected_entities()))
 
     def _undo(self):
-        restored_uuids = []
-        for e in self.deleted_entities:
-            if e.type == tscat._Catalogue:
-                entity = tscat.create_catalogue(**e.data)
-            else:
-                entity = tscat.create_event(**e.data)
+        def action_callback(action: RestorePermanentlyDeletedAction) -> None:
+            restored_uuids = [e.data['uuid'] for e in action.deleted_entities]
+            self._select(restored_uuids)
 
-            if e.in_trash:
-                entity.remove()
-
-            linked_entities = [get_entity_from_uuid_safe(uuid) for uuid in e.linked_uuids]
-            if isinstance(entity, tscat._Catalogue):
-                tscat.add_events_to_catalogue(entity, linked_entities)
-            else:
-                for c in linked_entities:
-                    assert isinstance(c, tscat._Catalogue)
-                    tscat.add_events_to_catalogue(c, entity)
-
-            restored_uuids += [entity.uuid]
-
-        self.state.updated("inserted", type(entity), restored_uuids)
-        self._select(restored_uuids)
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(RestorePermanentlyDeletedAction(action_callback, self._deleted_entities))
 
 
 class Import(_EntityBased):

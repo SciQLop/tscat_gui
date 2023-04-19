@@ -5,10 +5,11 @@ __email__ = 'p@yai.se'
 __version__ = '0.2.0'
 
 import datetime as dt
+import itertools
 import os
 import sys
 from pathlib import Path
-from typing import Union, Sequence, Type, cast
+from typing import Union, Sequence, Type, cast, Optional, List
 
 from PySide6 import QtWidgets, QtGui, QtCore
 from tscat import _Event, _Catalogue
@@ -20,6 +21,23 @@ from .tscat_driver.actions import SaveAction, CreateEntityAction, AddEventsToCat
     DeleteAttributeAction, Action, MoveToTrashAction, CanonicalizeImportAction, ExportJSONAction
 from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash, DeletePermanently, NewEvent, Import, \
     AddEventsToCatalogue
+
+
+class _TSCatConcatenateTablePM(QtCore.QConcatenateTablesProxyModel):
+    def __init__(self, parent: Optional[QtCore.QObject]):
+        super().__init__(parent)
+
+    def indexes_from_uuid(self, uuid: str) -> List[QtCore.QModelIndex]:
+        from .tscat_driver.catalog_model import CatalogModel
+
+        indexes = []
+        for model in self.sourceModels():
+            assert isinstance(model, CatalogModel)
+            indexes.append(model.index_from_uuid(uuid))
+
+        indexes = list(map(self.mapFromSource, indexes))
+        print(indexes)
+        return indexes
 
 
 class _TrashAlwaysTopOrBottomSortFilterModel(QtCore.QSortFilterProxyModel):
@@ -70,26 +88,26 @@ class TSCatGUI(QtWidgets.QWidget):
                 indexes = list(map(self.catalogue_model.index_from_uuid, uuids))
                 indexes = list(map(self.catalogue_sort_filter_model.mapFromSource, indexes))
                 self.programmatic_select = True
-                self.catalogues_view.clearSelection()
+                self.catalogues_view.selectionModel().clear()
                 for index in indexes:
-                    self.catalogues_view.selectionModel().select(index,
-                                                                 QtCore.QItemSelectionModel.SelectionFlag.Select)
+                    self.catalogues_view.selectionModel().select(index, QtCore.QItemSelectionModel.SelectionFlag.Select)
                 self.programmatic_select = False
 
-                # TODO use a combined model
-                if uuids:
-                    from .tscat_driver.model import tscat_model
-                    self._current_event_model = tscat_model.catalog(uuids[0])
-                    self.events_sort_model.setSourceModel(self._current_event_model)
-                    self.events_view.selectionModel().selectionChanged.connect(
-                        self.__current_event_changed, type=QtCore.Qt.DirectConnection)  # type: ignore
-                else:
-                    self.events_sort_model.setSourceModel(None)
+                current_models = set(self.event_model.sourceModels())
+                from .tscat_driver.model import tscat_model
+                new_models = set(map(tscat_model.catalog, uuids))
+
+                for i in current_models - new_models:
+                    self.event_model.removeSourceModel(i)
+                for i in new_models - current_models:
+                    self.event_model.addSourceModel(i)
+
             else:
-                indexes = list(map(self._current_event_model.index_from_uuid, uuids))
+                indexes = list(itertools.chain(*list(map(self.event_model.indexes_from_uuid, uuids))))
+                print(indexes)
                 indexes = list(map(self.events_sort_model.mapFromSource, indexes))
                 self.programmatic_select = True
-                self.events_view.clearSelection()
+                self.events_view.selectionModel().clear()
                 for index in indexes:
                     self.events_view.selectionModel().select(index,
                                                              QtCore.QItemSelectionModel.SelectionFlag.Select |
@@ -244,8 +262,12 @@ class TSCatGUI(QtWidgets.QWidget):
                                                   "The selected catalogues have been successfully exported")
 
     def __setup_ui(self) -> None:
+
         # Event Model and View
+        self.event_model = _TSCatConcatenateTablePM(self)
+
         self.events_sort_model = QtCore.QSortFilterProxyModel()
+        self.events_sort_model.setSourceModel(self.event_model)
 
         self.events_view = QtWidgets.QTableView()
         self.events_view.setMinimumSize(1000, 500)
@@ -257,6 +279,9 @@ class TSCatGUI(QtWidgets.QWidget):
         self.events_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)  # type: ignore
         self.events_view.setDragEnabled(True)
         self.events_view.setDragDropMode(QtWidgets.QTreeView.DragDropMode.DragOnly)
+
+        self.events_view.selectionModel().selectionChanged.connect(
+            self.__current_event_changed, type=QtCore.Qt.DirectConnection)  # type: ignore
 
         # Edit View
         self.edit_view = EntityEditView(self.state, self)
