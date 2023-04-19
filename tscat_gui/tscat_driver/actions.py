@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Union, Type, Any
 
 from tscat import _Catalogue, _Event, get_catalogues, get_events, create_catalogue, add_events_to_catalogue, \
-    create_event, remove_events_from_catalogue, save, canonicalize_json_import, import_canonicalized_dict
+    create_event, remove_events_from_catalogue, save, canonicalize_json_import, import_canonicalized_dict, export_json
 from tscat.filtering import UUID
 
 
@@ -197,3 +197,20 @@ class ImportCanonicalizedDictAction(Action):
 
     def action(self) -> None:
         self.catalogues = import_canonicalized_dict(self.import_dict)
+
+
+@dataclass
+class ExportJSONAction(Action):
+    filename: str
+    catalogue_uuids: list[str]
+
+    result: Union[Exception or None] = None
+
+    def action(self) -> None:
+        try:
+            with open(self.filename, 'w+') as f:
+                catalogues = list(map(self._entity, self.catalogue_uuids))
+                json = export_json(catalogues)  # type: ignore
+                f.write(json)
+        except Exception as e:
+            self.result = e
