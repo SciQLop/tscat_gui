@@ -1,15 +1,15 @@
+import abc
 from abc import ABC
-from typing import Optional, Sequence
-
-from tscat import _Event, _Catalogue
+from typing import Optional, Sequence, List
 
 from PySide6 import QtCore
+from tscat import _Event, _Catalogue
 
 
-class Node:
+class Node(ABC):
     def __init__(self) -> None:
-        self._parent = None
-        self._children = []
+        self._parent: Optional['Node'] = None
+        self._children: List['Node'] = []
 
     @property
     def parent(self) -> Optional['Node']:
@@ -51,14 +51,31 @@ class Node:
     def flags(self):
         return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable  # type: ignore
 
+    @property
+    @abc.abstractmethod
+    def uuid(self) -> str:
+        pass
+
+
+class RootNode(Node):
+    def __init__(self):
+        super().__init__()
+
+    def uuid(self) -> str:
+        return '00000000-0000-0000-0000-000000000000'
+
+    def flags(self):
+        return QtCore.Qt.NoItemFlags
+
 
 class NamedNode(Node, ABC):
     def __init__(self):
-        Node.__init__(self)
+        super().__init__()
 
     @property
+    @abc.abstractmethod
     def name(self) -> str:
-        ...
+        pass
 
 
 class TrashNode(NamedNode):
@@ -66,7 +83,7 @@ class TrashNode(NamedNode):
         super().__init__()
 
     @property
-    def uuid(self):
+    def uuid(self) -> str:
         return '00000000-0000-0000-0000-000000000000'
 
     @property
@@ -83,11 +100,11 @@ class EventNode(Node):
         self._entity = event
 
     @property
-    def uuid(self):
+    def uuid(self) -> str:
         return self._entity.uuid
 
     @property
-    def node(self):
+    def node(self) -> _Event:
         return self._entity
 
     @node.setter
@@ -104,11 +121,11 @@ class CatalogNode(NamedNode):
         self._entity = catalog
 
     @property
-    def uuid(self):
+    def uuid(self) -> str:
         return self._entity.uuid
 
     @property
-    def node(self):
+    def node(self) -> _Catalogue:
         return self._entity
 
     @node.setter

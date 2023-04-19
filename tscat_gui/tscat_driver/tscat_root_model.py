@@ -5,10 +5,11 @@ from PySide6.QtCore import QModelIndex, QAbstractItemModel, QPersistentModelInde
 from tscat import _Catalogue
 
 from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEntityAction, RemoveEntitiesAction, \
-    SetAttributeAction, DeleteAttributeAction, MoveToTrashAction, RestoreFromTrashAction, ImportCanonicalizedDictAction
+    SetAttributeAction, DeleteAttributeAction, MoveToTrashAction, RestoreFromTrashAction, ImportCanonicalizedDictAction, \
+    DeletePermanentlyAction, RestorePermanentlyDeletedAction
 from .catalog_model import CatalogModel
 from .driver import tscat_driver
-from .nodes import Node, NamedNode, CatalogNode, TrashNode
+from .nodes import Node, CatalogNode, TrashNode, RootNode
 from ..model_base.constants import UUIDDataRole
 
 
@@ -17,7 +18,7 @@ class TscatRootModel(QAbstractItemModel):
 
     def __init__(self):
         super().__init__()
-        self._root = NamedNode()
+        self._root = RootNode()
         self._trash = TrashNode()
 
         self._root.append_child(self._trash)
@@ -67,11 +68,17 @@ class TscatRootModel(QAbstractItemModel):
                 self._root.append_child(node)
                 self.endInsertRows()
 
-        elif isinstance(action, RemoveEntitiesAction):
+        elif isinstance(action, (RemoveEntitiesAction, DeletePermanentlyAction)):
             for row, c in reversed(list(enumerate(self._root.children))):
                 if c.uuid in action.uuids:
                     self.beginRemoveRows(QModelIndex(), row, row)
                     self._root.remove_child(c)
+                    self.endRemoveRows()
+
+            for row, c in reversed(list(enumerate(self._trash.children))):
+                if c.uuid in action.uuids:
+                    self.beginRemoveRows(self._trash_index(), row, row)
+                    self._trash.remove_child(c)
                     self.endRemoveRows()
 
         elif isinstance(action, MoveToTrashAction):
@@ -84,7 +91,6 @@ class TscatRootModel(QAbstractItemModel):
                     self.beginInsertRows(self._trash_index(), len(self._trash.children), len(self._trash.children))
                     self._trash.append_child(c)
                     self.endInsertRows()
-                    print('moving to trash', c, c.uuid)
 
         elif isinstance(action, RestoreFromTrashAction):
             for row, c in reversed(list(enumerate(self._trash.children))):
@@ -96,6 +102,21 @@ class TscatRootModel(QAbstractItemModel):
                     self.beginInsertRows(QModelIndex(), len(self._root.children), len(self._root.children))
                     self._root.append_child(c)
                     self.endInsertRows()
+
+        elif isinstance(action, RestorePermanentlyDeletedAction):
+            for e in action.deleted_entities:
+                if isinstance(e.restored_entity, _Catalogue):
+                    node = CatalogNode(e.restored_entity)
+                    if e.restored_entity.is_removed():
+                        print('restoring to trash', len(self._trash.children))
+                        self.beginInsertRows(self._trash_index(), len(self._trash.children), len(self._trash.children))
+                        self._trash.append_child(node)
+                        self.endInsertRows()
+                        print('restored to trash', len(self._trash.children))
+                    else:
+                        self.beginInsertRows(QModelIndex(), len(self._root.children), len(self._root.children))
+                        self._root.append_child(node)
+                        self.endInsertRows()
 
         elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
             for e in filter(lambda x: isinstance(x, _Catalogue), action.entities):
@@ -160,7 +181,7 @@ class TscatRootModel(QAbstractItemModel):
             return QModelIndex()
         child_item: Node = index.internalPointer()
         parent_item: Node = child_item.parent
-        if parent_item is not None:
+        if parent_item not in (None, self._root):
             return self.createIndex(parent_item.row, 0, parent_item)
         return QModelIndex()
 

@@ -1,9 +1,9 @@
-from typing import Dict, Union
-
 import atexit
-from PySide6.QtCore import QObject, QThread, Slot, Signal
+from typing import Dict, Union, Optional
 
+from PySide6.QtCore import QObject, QThread, Slot, Signal
 from tscat import _Catalogue, _Event
+
 from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEntityAction, RemoveEntitiesAction, \
     SetAttributeAction, DeleteAttributeAction, ImportCanonicalizedDictAction
 
@@ -11,7 +11,7 @@ from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEnti
 class _TscatDriverWorker(QThread):
     action_done = Signal(Action)
 
-    def __init__(self, parent: QObject or None = None) -> None:
+    def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent=parent)
         self.moveToThread(self)
         self.start()
@@ -28,7 +28,7 @@ class TscatDriver(QObject):
     _do_action = Signal(Action)
     action_done = Signal(Action)
 
-    def __init__(self, parent: QObject or None = None):
+    def __init__(self, parent: Optional[QObject] = None):
         super().__init__(parent=parent)
 
         self._worker = _TscatDriverWorker()
@@ -37,7 +37,7 @@ class TscatDriver(QObject):
         self._worker.action_done.connect(self._worker_action_done)
 
         self._entity_cache: Dict[str, Union[_Event, _Catalogue]] = {}
-        self.destroyed.connect(self.stop)
+        self.destroyed.connect(self.stop)  # type: ignore
 
     def do(self, action: Action) -> None:
         self._do_action.emit(action)
@@ -53,6 +53,7 @@ class TscatDriver(QObject):
                 self._entity_cache[event.uuid] = event
 
         elif isinstance(action, CreateEntityAction):
+            assert action.entity
             self._entity_cache[action.entity.uuid] = action.entity
 
         elif isinstance(action, RemoveEntitiesAction):

@@ -6,7 +6,7 @@ from tscat import _Event
 
 from .actions import GetCatalogueAction, Action, SetAttributeAction, DeleteAttributeAction, \
     AddEventsToCatalogueAction, RemoveEntitiesAction, RemoveEventsFromCatalogueAction, MoveToTrashAction, \
-    RestoreFromTrashAction
+    RestoreFromTrashAction, DeletePermanentlyAction, RestorePermanentlyDeletedAction
 from .driver import tscat_driver
 from .nodes import CatalogNode, EventNode, TrashNode
 from ..model_base.constants import UUIDDataRole, EntityRole
@@ -35,13 +35,14 @@ class CatalogModel(QAbstractTableModel):
             for e in filter(lambda x: isinstance(x, _Event), action.entities):
                 for node in (self._root, self._trash):
                     for row, child in enumerate(node.children):
+                        assert isinstance(child, _Event)
                         if child.uuid == e.uuid:
                             child.node = e
 
                             if node == self._root:  # update model only for visible nodes
                                 index_left = self.index(row, 0, QModelIndex())
                                 index_right = self.index(row, self.columnCount(), QModelIndex())
-                                self.dataChanged.emit(index_left, index_right)
+                                self.dataChanged.emit(index_left, index_right)  # type: ignore
 
         elif isinstance(action, AddEventsToCatalogueAction):
             if action.catalogue_uuid == self._root.uuid:
@@ -50,11 +51,28 @@ class CatalogModel(QAbstractTableModel):
                 removed_nodes = list(filter(lambda x: x.node.is_removed(), nodes))
                 nodes = list(filter(lambda x: not x.node.is_removed(), nodes))
 
-                self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount() + len(action.uuids) - 1)
+                self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount() + len(nodes) - 1)
                 self._root.append_children(nodes)
                 self.endInsertRows()
 
                 self._trash.append_children(removed_nodes)
+
+        elif isinstance(action, RestorePermanentlyDeletedAction):
+            removed_nodes: List[EventNode] = []
+            nodes: List[EventNode] = []
+            for e in action.deleted_entities:
+                if e.type == _Event:
+                    node = EventNode(e.restored_entity)
+                    if e.restored_entity.is_removed():
+                        removed_nodes.append(node)
+                    else:
+                        nodes.append(node)
+
+            self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount() + len(nodes) - 1)
+            self._root.append_children(nodes)
+            self.endInsertRows()
+
+            self._trash.append_children(removed_nodes)
 
         elif isinstance(action, RemoveEventsFromCatalogueAction):
             if action.catalogue_uuid == self._root.uuid:
@@ -69,7 +87,7 @@ class CatalogModel(QAbstractTableModel):
                         if c.uuid == e:
                             self._trash.remove_child(c)
 
-        elif isinstance(action, RemoveEntitiesAction):
+        elif isinstance(action, (RemoveEntitiesAction, DeletePermanentlyAction)):
             for row, c in reversed(list(enumerate(self._root.children))):
                 if c.uuid in action.uuids:
                     self.beginRemoveRows(QModelIndex(), row, row)
@@ -77,7 +95,7 @@ class CatalogModel(QAbstractTableModel):
                     self.endRemoveRows()
 
             for c in self._trash.children[:]:
-                if c.uuid == action.uuid:
+                if c.uuid in action.uuids:
                     self._trash.remove_child(c)
 
         elif isinstance(action, MoveToTrashAction):
