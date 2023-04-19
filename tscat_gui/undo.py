@@ -9,8 +9,9 @@ import tscat
 from PySide6 import QtGui
 
 from .state import AppState
-from .tscat_driver.actions import CreateEntityAction, RemoveEntityAction, SetAttributeAction, DeleteAttributeAction, \
-    AddEventsToCatalogueAction, RemoveEventsFromCatalogueAction, MoveToTrashAction, RestoreFromTrashAction
+from .tscat_driver.actions import CreateEntityAction, RemoveEntitiesAction, SetAttributeAction, DeleteAttributeAction, \
+    AddEventsToCatalogueAction, RemoveEventsFromCatalogueAction, MoveToTrashAction, RestoreFromTrashAction, \
+    ImportCanonicalizedDictAction
 
 
 class _EntityBased(QtGui.QUndoCommand):
@@ -169,11 +170,11 @@ class NewCatalogue(_EntityBased):
                                           }))
 
     def _undo(self):
-        def remove_callback(_: RemoveEntityAction) -> None:
+        def remove_callback(_: RemoveEntitiesAction) -> None:
             self._select(self._selected_entities())
 
         from .tscat_driver.model import tscat_model
-        tscat_model.do(RemoveEntityAction(remove_callback, self.uuid, True))
+        tscat_model.do(RemoveEntitiesAction(remove_callback, [self.uuid], True))
 
 
 class NewEvent(_EntityBased):
@@ -201,11 +202,11 @@ class NewEvent(_EntityBased):
                                           }))
 
     def _undo(self):
-        def remove_callback(_: RemoveEntityAction) -> None:
+        def remove_callback(_: RemoveEntitiesAction) -> None:
             self._select(self._selected_entities())
 
         from .tscat_driver.model import tscat_model
-        tscat_model.do(RemoveEntityAction(remove_callback, self.uuid, True))
+        tscat_model.do(RemoveEntitiesAction(remove_callback, [self.uuid], True))
 
 
 class MoveRestoreTrashedEntity(_EntityBased):
@@ -319,25 +320,17 @@ class Import(_EntityBased):
         self.import_dict = canonicalized_import_dict
 
     def _redo(self):
-        tscat.import_canonicalized_dict(deepcopy(self.import_dict))
-
-        # select one catalogue from the import to refresh the view
-        uuids = [c['uuid'] for c in self.import_dict["catalogues"]]
-        self.state.updated("inserted", tscat._Catalogue, uuids)
-        self._select(uuids, tscat._Catalogue)
+        from .tscat_driver.model import tscat_model
+        tscat_model.do(ImportCanonicalizedDictAction(None, deepcopy(self.import_dict)))
 
     def _undo(self):
-        for event in self.import_dict["events"]:
-            ev = get_entity_from_uuid_safe(event["uuid"])
-            ev.remove(permanently=True)
+        from .tscat_driver.model import tscat_model
 
-        for catalogue in self.import_dict["catalogues"]:
-            cat = get_entity_from_uuid_safe(catalogue["uuid"])
-            cat.remove(permanently=True)
+        event_uuids = [uuid for uuid in self.import_dict.events.keys()]
+        tscat_model.do(RemoveEntitiesAction(None, event_uuids, True))
 
-        uuids = [c['uuid'] for c in self.import_dict["catalogues"]]
-        self.state.updated("removed", tscat._Catalogue, uuids)
-        self._select(self._selected_entities())
+        catalogue_uuids = [cat["uuid"] for cat in self.import_dict.catalogues]
+        tscat_model.do(RemoveEntitiesAction(None, catalogue_uuids, True))
 
 
 class AddEventsToCatalogue(_EntityBased):

@@ -5,7 +5,7 @@ from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, QPersistentMode
 from tscat import _Event
 
 from .actions import GetCatalogueAction, Action, SetAttributeAction, DeleteAttributeAction, \
-    AddEventsToCatalogueAction, RemoveEntityAction, RemoveEventsFromCatalogueAction, MoveToTrashAction, \
+    AddEventsToCatalogueAction, RemoveEntitiesAction, RemoveEventsFromCatalogueAction, MoveToTrashAction, \
     RestoreFromTrashAction
 from .driver import tscat_driver
 from .nodes import CatalogNode, EventNode, TrashNode
@@ -69,9 +69,9 @@ class CatalogModel(QAbstractTableModel):
                         if c.uuid == e:
                             self._trash.remove_child(c)
 
-        elif isinstance(action, RemoveEntityAction):
+        elif isinstance(action, RemoveEntitiesAction):
             for row, c in reversed(list(enumerate(self._root.children))):
-                if c.uuid == action.uuid:
+                if c.uuid in action.uuids:
                     self.beginRemoveRows(QModelIndex(), row, row)
                     self._root.remove_child(c)
                     self.endRemoveRows()

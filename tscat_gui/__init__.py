@@ -17,7 +17,7 @@ from .edit import EntityEditView
 from .model_base.constants import UUIDDataRole
 from .state import AppState
 from .tscat_driver.actions import SaveAction, CreateEntityAction, AddEventsToCatalogueAction, SetAttributeAction, \
-    DeleteAttributeAction, Action, MoveToTrashAction
+    DeleteAttributeAction, Action, MoveToTrashAction, CanonicalizeImportAction
 from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash, DeletePermanently, NewEvent, Import, \
     AddEventsToCatalogue
 
@@ -182,16 +182,32 @@ class TSCatGUI(QtWidgets.QWidget):
             "Select a catalogue file to be imported",
             str(Path.home()),
             "JSON Document (*.json)")
+
         if filename != '':
-            try:
-                with open(filename) as f:
-                    data = f.read()
-                    import_dict = canonicalize_json_import(data)
-                    self.state.push_undo_command(Import, filename, import_dict)
-            except Exception as e:
+            event_loop = QtCore.QEventLoop()
+
+            result = None
+
+            def canonicalization_done(action: CanonicalizeImportAction) -> None:
+                nonlocal result
+                result = action.result
+
+                if result is None:
+                    self.state.push_undo_command(Import, filename, action.import_dict)
+
+                event_loop.quit()
+
+            from .tscat_driver.model import tscat_model
+            tscat_model.do(CanonicalizeImportAction(canonicalization_done, filename))
+
+            event_loop.exec()
+
+            print('import done', result)
+
+            if result:
                 QtWidgets.QMessageBox.critical(self,
                                                "Catalogue import",
-                                               f"The selected file could not be imported: '{e}'.")
+                                               f"The selected file could not be imported: '{result}'.")
 
     def __export_to_file(self) -> None:
         filename, filetype = QtWidgets.QFileDialog.getSaveFileName(
@@ -413,12 +429,14 @@ class TSCatGUI(QtWidgets.QWidget):
             else:
                 self.events_changed.emit([e.uuid for e in action.entities])
 
-    def update_event_range(self, uuid: str, start: dt.datetime, stop: dt.datetime) -> None:
+    @staticmethod
+    def update_event_range(uuid: str, start: dt.datetime, stop: dt.datetime) -> None:
         from .tscat_driver.model import tscat_model
         tscat_model.do(SetAttributeAction(None, [uuid], 'start', [start]))
         tscat_model.do(SetAttributeAction(None, [uuid], 'stop', [stop]))
 
-    def create_event(self, start: dt.datetime, stop: dt.datetime, author: str, catalogue_uuid: str) -> _Event:
+    @staticmethod
+    def create_event(start: dt.datetime, stop: dt.datetime, author: str, catalogue_uuid: str) -> _Event:
         event_loop = QtCore.QEventLoop()
         entity = None
 
@@ -443,7 +461,8 @@ class TSCatGUI(QtWidgets.QWidget):
 
         return entity
 
-    def move_to_trash(self, uuid: str) -> None:
+    @staticmethod
+    def move_to_trash(uuid: str) -> None:
         from .tscat_driver.model import tscat_model
         tscat_model.do(MoveToTrashAction([uuid]))
 
