@@ -17,7 +17,7 @@ from .edit import EntityEditView
 from .model_base.constants import UUIDDataRole
 from .state import AppState
 from .tscat_driver.actions import SaveAction, CreateEntityAction, AddEventsToCatalogueAction, SetAttributeAction, \
-    DeleteAttributeAction, Action, MoveToTrashAction, CanonicalizeImportAction
+    DeleteAttributeAction, Action, MoveToTrashAction, CanonicalizeImportAction, ExportJSONAction
 from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash, DeletePermanently, NewEvent, Import, \
     AddEventsToCatalogue
 
@@ -202,8 +202,6 @@ class TSCatGUI(QtWidgets.QWidget):
 
             event_loop.exec()
 
-            print('import done', result)
-
             if result:
                 QtWidgets.QMessageBox.critical(self,
                                                "Catalogue import",
@@ -220,20 +218,30 @@ class TSCatGUI(QtWidgets.QWidget):
             if split_filename[1] != '.json':
                 filename = split_filename[0] + '.json'
 
-            try:
-                with open(filename, 'w+') as f:
-                    catalogues = [get_entggity_from_uuid_safe(uuid)
-                                  for uuid in self.state.select_state().selected_catalogues]
-                    json = export_json(catalogues)  # type: ignore
-                    f.write(json)
-                QtWidgets.QMessageBox.information(self,
-                                                  "Catalogue export",
-                                                  "The selected catalogues have been successfully exported")
-            except Exception as e:
+            event_loop = QtCore.QEventLoop()
+
+            result = None
+
+            def export_done(action: CanonicalizeImportAction) -> None:
+                nonlocal result
+                result = action.result
+
+                event_loop.quit()
+
+            from .tscat_driver.model import tscat_model
+            tscat_model.do(ExportJSONAction(export_done, filename, self.state.select_state().selected_catalogues))
+
+            event_loop.exec()
+
+            if result:
                 QtWidgets.QMessageBox.critical(
                     self,
                     "Catalogue export",
-                    f"The selected catalogues could not be exported to {filename} due to '{e}'.")
+                    f"The selected catalogues could not be exported to {filename} due to '{result}'.")
+            else:
+                QtWidgets.QMessageBox.information(self,
+                                                  "Catalogue export",
+                                                  "The selected catalogues have been successfully exported")
 
     def __setup_ui(self) -> None:
         # Event Model and View
