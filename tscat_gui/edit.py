@@ -1,15 +1,15 @@
 import datetime as dt
+import functools
 from typing import Union, Dict, Optional, List, Type, cast, Any, Callable
 
 import tscat
 import tscat.filtering
 from PySide6 import QtCore, QtWidgets
 
-from .tscat_driver.actions import Action, GetCatalogueAction, SetAttributeAction, DeleteAttributeAction
-
 from .metadata import catalogue_meta_data
 from .predicate import SimplePredicateEditDialog
 from .state import AppState
+from .tscat_driver.actions import Action, GetCatalogueAction, SetAttributeAction
 from .undo import NewAttribute, RenameAttribute, DeleteAttributeAction, SetAttributeValue, DeleteAttribute
 from .utils.editable_label import EditableLabel
 from .utils.helper import AttributeNameValidator, IntDelegate, FloatDelegate, \
@@ -231,8 +231,8 @@ class FixedAttributesGroupBox(AttributesGroupBox):
                  parent: Optional[QtWidgets.QWidget] = None):
         super().__init__("Global", state, parent)
 
-    def setup(self, entities: List[tscat._Catalogue or tscat._Event]) -> None:
-        values = {}
+    def setup(self, entities: List[Union[tscat._Catalogue, tscat._Event]]) -> None:
+        values: Dict[str, Any] = {}
 
         for entity in entities:
             for attr in entity.fixed_attributes().keys():
@@ -267,7 +267,7 @@ class CustomAttributesGroupBox(AttributesGroupBox):
 
         self.all_attribute_names: List[str] = []
 
-    def setup(self, entities: List[tscat._Catalogue or tscat._Event]) -> None:
+    def setup(self, entities: List[Union[tscat._Catalogue, tscat._Event]]) -> None:
         if len(entities) > 1:
             self.hide()
             return
@@ -351,7 +351,7 @@ class CatalogueMetaDataGroupBox(AttributesGroupBox):
                  parent: Optional[QtWidgets.QWidget] = None):
         super().__init__("Catalogue(s) information", state, parent)
 
-    def setup(self, entities: List[tscat._Catalogue or tscat._Event]) -> None:
+    def setup(self, entities: List[Union[tscat._Catalogue, tscat._Event]]) -> None:
 
         catalogues = [entity for entity in entities if isinstance(entity, tscat._Catalogue)]
         if len(catalogues) == 0:
@@ -437,24 +437,11 @@ class EntityEditView(QtWidgets.QScrollArea):
         else:
             print('unsupported (old) state-changed', action)
 
-
     def _model_action_done(self, action: Action) -> None:
-        if isinstance(action, GetCatalogueAction):
-            if action.uuid in self.current_uuids:
-                self.edit.setup(self.current_uuids)
-        elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
-            if any(entity.uuid in self.current_uuids for entity in action.entities):
-                self.edit.setup(self.current_uuids)
-
-#                 if action == 'removed':
-#                     self.current_uuids = uuids
-#                     if self.edit:
-#                         if len(self.current_uuids) > 0:  # if there are still uuids present, just update - like in changed
-#                             setup = True
-#                         else:  # otherwise clear
-#                             self.edit.deleteLater()
-#                             self.edit = None
-#                 elif action == 'changed':
-#                     if self.edit:
-#
-#         if setup:
+        if self.edit:
+            if isinstance(action, GetCatalogueAction):
+                if action.uuid in self.current_uuids:
+                    self.edit.setup(self.current_uuids)
+            elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
+                if any(entity.uuid in self.current_uuids for entity in action.entities):
+                    self.edit.setup(self.current_uuids)

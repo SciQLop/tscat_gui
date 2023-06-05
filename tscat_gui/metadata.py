@@ -1,16 +1,17 @@
 from typing import List, cast
 
 import tscat
+
 from .model_base.constants import EntityRole
 
 
 def __total_event_count(catalogues: List[tscat._Catalogue]) -> str:
     from .tscat_driver.model import tscat_model
-    return sum(tscat_model.catalog(c.uuid).rowCount() for c in catalogues)
+    return str(sum(tscat_model.catalog(c.uuid).rowCount() for c in catalogues))
 
 
 def __global_start_stop_range(catalogues: List[tscat._Catalogue]) -> str:
-    from .tscat_driver import tscat_model
+    from .tscat_driver.model import tscat_model
     min_start, max_stop = None, None
     for c in catalogues:
         model = tscat_model.catalog(c.uuid)

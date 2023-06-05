@@ -61,6 +61,7 @@ class RootNode(Node):
     def __init__(self):
         super().__init__()
 
+    @property
     def uuid(self) -> str:
         return '00000000-0000-0000-0000-000000000000'
 
@@ -108,7 +109,7 @@ class EventNode(Node):
         return self._entity
 
     @node.setter
-    def node(self, entity) -> None:
+    def node(self, entity: _Event) -> None:
         self._entity = entity
 
     def flags(self):
@@ -129,7 +130,7 @@ class CatalogNode(NamedNode):
         return self._entity
 
     @node.setter
-    def node(self, entity) -> None:
+    def node(self, entity: _Catalogue) -> None:
         self._entity = entity
 
     @property

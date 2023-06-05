@@ -74,6 +74,11 @@ class TscatDriver(QObject):
     def entity_from_uuid(self, uuid: str) -> Union[_Event, _Catalogue]:
         return self._entity_cache[uuid]
 
+    def event_from_uuid(self, uuid: str) -> _Event:
+        entity = self.entity_from_uuid(uuid)
+        assert isinstance(entity, _Event)
+        return entity
+
     def stop(self):
         self._worker.requestInterruption()
         if not self._worker.wait(1000):

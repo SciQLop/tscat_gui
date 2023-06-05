@@ -18,9 +18,10 @@ from .edit import EntityEditView
 from .model_base.constants import UUIDDataRole
 from .state import AppState
 from .tscat_driver.actions import SaveAction, CreateEntityAction, AddEventsToCatalogueAction, SetAttributeAction, \
-    DeleteAttributeAction, Action, MoveToTrashAction, CanonicalizeImportAction, ExportJSONAction
+    DeleteAttributeAction, Action, MoveToTrashAction, CanonicalizeImportAction
 from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash, DeletePermanently, NewEvent, Import, \
     AddEventsToCatalogue
+from .utils.export import export_to_json
 
 
 class _TSCatConcatenateTablePM(QtCore.QConcatenateTablesProxyModel):
@@ -236,21 +237,7 @@ class TSCatGUI(QtWidgets.QWidget):
             if split_filename[1] != '.json':
                 filename = split_filename[0] + '.json'
 
-            event_loop = QtCore.QEventLoop()
-
-            result = None
-
-            def export_done(action: CanonicalizeImportAction) -> None:
-                nonlocal result
-                result = action.result
-
-                event_loop.quit()
-
-            from .tscat_driver.model import tscat_model
-            tscat_model.do(ExportJSONAction(export_done, filename, self.state.select_state().selected_catalogues))
-
-            event_loop.exec()
-
+            result = export_to_json(filename, self.state.select_state().selected_catalogues)
             if result:
                 QtWidgets.QMessageBox.critical(
                     self,
@@ -492,12 +479,14 @@ class TSCatGUI(QtWidgets.QWidget):
 
         event_loop.exec()
 
+        assert isinstance(entity, _Event)
+
         return entity
 
     @staticmethod
     def move_to_trash(uuid: str) -> None:
         from .tscat_driver.model import tscat_model
-        tscat_model.do(MoveToTrashAction([uuid]))
+        tscat_model.do(MoveToTrashAction(None, [uuid]))
 
     def save(self) -> None:
         def clear_undo_stack(_: SaveAction) -> None:

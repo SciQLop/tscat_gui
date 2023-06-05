@@ -35,18 +35,17 @@ class CatalogModel(QAbstractTableModel):
             for e in filter(lambda x: isinstance(x, _Event), action.entities):
                 for node in (self._root, self._trash):
                     for row, child in enumerate(node.children):
-                        assert isinstance(child, _Event)
-                        if child.uuid == e.uuid:
+                        if isinstance(child, EventNode) and child.uuid == e.uuid:
                             child.node = e
 
                             if node == self._root:  # update model only for visible nodes
                                 index_left = self.index(row, 0, QModelIndex())
-                                index_right = self.index(row, self.columnCount(), QModelIndex())
+                                index_right = self.index(row, self.columnCount() - 1, QModelIndex())
                                 self.dataChanged.emit(index_left, index_right)  # type: ignore
 
         elif isinstance(action, AddEventsToCatalogueAction):
             if action.catalogue_uuid == self._root.uuid:
-                nodes = list(map(EventNode, map(tscat_driver.entity_from_uuid, action.uuids)))
+                nodes = list(map(lambda x: EventNode(x), map(tscat_driver.event_from_uuid, action.uuids)))
 
                 removed_nodes = list(filter(lambda x: x.node.is_removed(), nodes))
                 nodes = list(filter(lambda x: not x.node.is_removed(), nodes))
@@ -58,15 +57,15 @@ class CatalogModel(QAbstractTableModel):
                 self._trash.append_children(removed_nodes)
 
         elif isinstance(action, RestorePermanentlyDeletedAction):
-            removed_nodes: List[EventNode] = []
-            nodes: List[EventNode] = []
+            removed_nodes: List[EventNode] = []  # type: ignore
+            nodes: List[EventNode] = []  # type: ignore
             for e in action.deleted_entities:
                 if e.type == _Event:
-                    node = EventNode(e.restored_entity)
+                    event_node = EventNode(e.restored_entity)
                     if e.restored_entity.is_removed():
-                        removed_nodes.append(node)
+                        removed_nodes.append(event_node)
                     else:
-                        nodes.append(node)
+                        nodes.append(event_node)
 
             self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount() + len(nodes) - 1)
             self._root.append_children(nodes)
@@ -107,11 +106,11 @@ class CatalogModel(QAbstractTableModel):
                     self._trash.append_child(c)
 
         elif isinstance(action, RestoreFromTrashAction):
-            nodes = []
+            nodes = []  # type: ignore
             for c in self._trash.children[:]:
                 if c.uuid in action.uuids:
                     self._trash.remove_child(c)
-                    nodes.append(c)
+                    nodes.append(c)  # type: ignore
 
             if nodes:
                 self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount() + len(nodes) - 1)
@@ -143,16 +142,22 @@ class CatalogModel(QAbstractTableModel):
 
     def data(self, index: Union[QModelIndex, QPersistentModelIndex],
              role: int = Qt.DisplayRole):  # type: ignore
+        if not index.isValid():
+            return None
+
+        child = self._root.children[index.row()]
+        assert isinstance(child, EventNode)
+
         if role == Qt.DisplayRole:  # type: ignore
             if index.column() < len(self._columns):
                 key = self._columns[index.column()]
-                return str(self._root.children[index.row()].node.__dict__[key])
+                return str(child.node.__dict__[key])
             else:
-                return str(self._root.children[index.row()].node.variable_attributes())
+                return str(child.node.variable_attributes())
         elif role == UUIDDataRole:
-            return self._root.children[index.row()].uuid
+            return child.uuid
         elif role == EntityRole:
-            return self._root.children[index.row()].node
+            return child.node
 
         return None
 

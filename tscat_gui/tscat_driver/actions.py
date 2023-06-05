@@ -9,7 +9,7 @@ from tscat.filtering import UUID
 
 @dataclass
 class Action(ABC):
-    user_callback: Union[Callable[[object], None], None]
+    user_callback: Optional[Callable[[Any], None]]
     completed: bool = field(init=False)
 
     def __post_init__(self):
@@ -47,7 +47,7 @@ class Action(ABC):
 @dataclass
 class GetCataloguesAction(Action):
     removed_items: bool = False
-    catalogues: list[_Catalogue] = field(default_factory=list)
+    catalogues: List[_Catalogue] = field(default_factory=list)
 
     def action(self) -> None:
         self.catalogues = get_catalogues(removed_items=self.removed_items)
@@ -57,7 +57,7 @@ class GetCataloguesAction(Action):
 class GetCatalogueAction(Action):
     uuid: str
     removed_items: bool = False
-    events: list[_Event] = field(default_factory=list)
+    events: List[_Event] = field(default_factory=list)
 
     def action(self) -> None:
         catalogue = get_catalogues(UUID(self.uuid))[0]
@@ -69,7 +69,7 @@ class CreateEntityAction(Action):
     cls: Type[Union[_Catalogue, _Event]]
     args: dict
 
-    entity: Optional[Union[_Catalogue, _Event]] = None
+    entity: Union[_Catalogue, _Event] = field(init=False)
 
     def action(self) -> None:
         if self.cls == _Catalogue:
@@ -80,7 +80,7 @@ class CreateEntityAction(Action):
 
 @dataclass
 class RemoveEntitiesAction(Action):
-    uuids: list[str]
+    uuids: List[str]
     permanently: bool
 
     def action(self) -> None:
@@ -90,7 +90,7 @@ class RemoveEntitiesAction(Action):
 
 @dataclass
 class AddEventsToCatalogueAction(Action):
-    uuids: list[str]
+    uuids: List[str]
     catalogue_uuid: str
 
     def action(self) -> None:
@@ -105,7 +105,7 @@ class AddEventsToCatalogueAction(Action):
 
 @dataclass
 class RemoveEventsFromCatalogueAction(Action):
-    uuids: list[str]
+    uuids: List[str]
     catalogue_uuid: str
 
     def action(self) -> None:
@@ -120,11 +120,11 @@ class EntityChangeAction(Action):
 
 @dataclass
 class SetAttributeAction(EntityChangeAction):
-    uuids: list[str]
+    uuids: List[str]
     name: str
-    values: list[Any]
+    values: List[Any]
 
-    entities: list = field(default_factory=list)
+    entities: List = field(default_factory=list)
 
     def action(self) -> None:
         for uuid, value in zip(self.uuids, self.values):
@@ -135,10 +135,10 @@ class SetAttributeAction(EntityChangeAction):
 
 @dataclass
 class DeleteAttributeAction(EntityChangeAction):
-    uuids: list[str]
+    uuids: List[str]
     name: str
 
-    entities: list = field(default_factory=list)
+    entities: List = field(default_factory=list)
 
     def action(self) -> None:
         for entity in map(self._entity, self.uuids):
@@ -154,9 +154,9 @@ class SaveAction(Action):
 
 @dataclass
 class MoveToTrashAction(Action):
-    uuids: list[str]
+    uuids: List[str]
 
-    entities: list = field(default_factory=list)
+    entities: List = field(default_factory=list)
 
     def action(self) -> None:
         for entity in map(self._entity, self.uuids):
@@ -166,9 +166,9 @@ class MoveToTrashAction(Action):
 
 @dataclass
 class RestoreFromTrashAction(Action):
-    uuids: list[str]
+    uuids: List[str]
 
-    entities: list = field(default_factory=list)
+    entities: List = field(default_factory=list)
 
     def action(self) -> None:
         for entity in map(self._entity, self.uuids):
@@ -196,7 +196,7 @@ class CanonicalizeImportAction(Action):
 class ImportCanonicalizedDictAction(Action):
     import_dict: Any
 
-    catalogues: list = field(default_factory=list)
+    catalogues: List = field(default_factory=list)
 
     def action(self) -> None:
         self.catalogues = import_canonicalized_dict(self.import_dict)
@@ -205,7 +205,7 @@ class ImportCanonicalizedDictAction(Action):
 @dataclass
 class ExportJSONAction(Action):
     filename: str
-    catalogue_uuids: list[str]
+    catalogue_uuids: List[str]
 
     result: Optional[Exception] = None
 
@@ -224,21 +224,21 @@ class _DeletedEntity:
     type: Union[Type[_Catalogue], Type[_Event]]
     in_trash: bool
     data: dict
-    linked_uuids: list[str]
+    linked_uuids: List[str]
     restored_entity: Optional[Union[_Catalogue, _Event]] = None
 
 
 @dataclass
 class DeletePermanentlyAction(Action):
-    uuids: list[str]
+    uuids: List[str]
 
     deleted_entities: List[_DeletedEntity] = field(default_factory=list)
 
     def action(self) -> None:
         for entity in map(self._entity, self.uuids):
-            if type(entity) == _Catalogue:
+            if isinstance(entity, _Catalogue):
                 linked_uuids = [e.uuid for e in get_events(entity, assigned_only=True)]
-            else:
+            elif isinstance(entity, _Event):
                 linked_uuids = [e.uuid for e in get_catalogues(entity)]
 
             deleted_entity = _DeletedEntity(
@@ -257,6 +257,7 @@ class RestorePermanentlyDeletedAction(Action):
 
     def action(self) -> None:
         for e in self.deleted_entities:
+            entity: Union[_Catalogue, _Event]
             if e.type == _Catalogue:
                 entity = create_catalogue(**e.data)
             else:
@@ -265,13 +266,13 @@ class RestorePermanentlyDeletedAction(Action):
             e.restored_entity = entity
 
             if e.in_trash:
-                print('entity is trashed', entity)
                 entity.remove()
 
             linked_entities = list(map(self._entity, e.linked_uuids))
             if isinstance(entity, _Catalogue):
-                add_events_to_catalogue(entity, linked_entities)
-            else:
+                assert all(lambda x=x: isinstance(x, _Event) for x in linked_entities)
+                add_events_to_catalogue(entity, linked_entities)  # type: ignore
+            elif isinstance(entity, _Event):
                 for c in linked_entities:
                     assert isinstance(c, _Catalogue)
                     add_events_to_catalogue(c, entity)
