@@ -148,15 +148,16 @@ class SetAttributeValue(_EntityBased):
 
 
 class NewCatalogue(_EntityBased):
-    def __init__(self, state: AppState, parent=None):
+    def __init__(self, state: AppState, parent=None) -> None:
         super().__init__(state, parent)
 
         self.setText('Create new Catalogue')
 
-        self.uuid = None
+        self.uuid: str
 
-    def _redo(self):
+    def _redo(self) -> None:
         def creation_callback(action: CreateEntityAction) -> None:
+            assert action.entity is not None
             self.uuid = action.entity.uuid
             self._select([self.uuid], tscat._Catalogue)
 
@@ -168,7 +169,7 @@ class NewCatalogue(_EntityBased):
                                               'uuid': self.uuid
                                           }))
 
-    def _undo(self):
+    def _undo(self) -> None:
         def remove_callback(_: RemoveEntitiesAction) -> None:
             self._select(self._selected_entities())
 
@@ -182,7 +183,7 @@ class NewEvent(_EntityBased):
 
         self.setText('Create new Event')
 
-        self.uuid = None
+        self.uuid: str
 
     def _redo(self):
         from .tscat_driver.model import tscat_model

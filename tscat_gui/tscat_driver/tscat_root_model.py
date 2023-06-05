@@ -1,5 +1,5 @@
 import pickle
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union, cast
 
 from PySide6.QtCore import QModelIndex, QAbstractItemModel, QPersistentModelIndex, Qt, QMimeData, Signal
 from tscat import _Catalogue
@@ -9,14 +9,14 @@ from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEnti
     DeletePermanentlyAction, RestorePermanentlyDeletedAction
 from .catalog_model import CatalogModel
 from .driver import tscat_driver
-from .nodes import Node, CatalogNode, TrashNode, RootNode
-from ..model_base.constants import UUIDDataRole
+from .nodes import Node, CatalogNode, TrashNode, RootNode, NamedNode
+from ..model_base.constants import UUIDDataRole, EntityRole
 
 
 class TscatRootModel(QAbstractItemModel):
     events_dropped_on_catalogue = Signal(str, list)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._root = RootNode()
         self._trash = TrashNode()
@@ -108,27 +108,26 @@ class TscatRootModel(QAbstractItemModel):
                 if isinstance(e.restored_entity, _Catalogue):
                     node = CatalogNode(e.restored_entity)
                     if e.restored_entity.is_removed():
-                        print('restoring to trash', len(self._trash.children))
                         self.beginInsertRows(self._trash_index(), len(self._trash.children), len(self._trash.children))
                         self._trash.append_child(node)
                         self.endInsertRows()
-                        print('restored to trash', len(self._trash.children))
                     else:
                         self.beginInsertRows(QModelIndex(), len(self._root.children), len(self._root.children))
                         self._root.append_child(node)
                         self.endInsertRows()
 
         elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
-            for e in filter(lambda x: isinstance(x, _Catalogue), action.entities):
+            for c in filter(lambda x: isinstance(x, _Catalogue), action.entities):
+                assert isinstance(c, _Catalogue)
                 for row, child in enumerate(self._root.children):
-                    if child.uuid == e.uuid:
-                        child.node = e
+                    if isinstance(child, CatalogNode) and child.uuid == c.uuid:
+                        child.node = c
                         index = self.index(row, 0, QModelIndex())
                         self.dataChanged.emit(index, index)
 
                 for row, child in enumerate(self._trash.children):
-                    if child.uuid == e.uuid:
-                        child.node = e
+                    if isinstance(child, CatalogNode) and child.uuid == c.uuid:
+                        child.node = c
                         index = self.index(row, 0, self._trash_index())
                         self.dataChanged.emit(index, index)
 
@@ -147,6 +146,7 @@ class TscatRootModel(QAbstractItemModel):
             else:
                 assert False
 
+            assert isinstance(child, CatalogNode)
             catalogue_model = CatalogModel(child)
             self._catalogues[uuid] = catalogue_model
             tscat_driver.do(GetCatalogueAction(None, removed_items=False, uuid=uuid))
@@ -164,7 +164,8 @@ class TscatRootModel(QAbstractItemModel):
                     return result
         return QModelIndex()
 
-    def index(self, row: int, column: int, parent: QModelIndex | QPersistentModelIndex) -> QModelIndex:
+    def index(self, row: int, column: int,
+              parent: Union[QModelIndex, QPersistentModelIndex] = QModelIndex()) -> QModelIndex:
         if self.hasIndex(row, column, parent):
             if not parent.isValid():
                 parent_item: Node = self._root
@@ -176,45 +177,52 @@ class TscatRootModel(QAbstractItemModel):
                 return self.createIndex(row, column, child_item)
         return QModelIndex()
 
-    def parent(self, index: QModelIndex | QPersistentModelIndex) -> QModelIndex:
+    def parent(self, index: Union[QModelIndex, QPersistentModelIndex]) -> QModelIndex:  # type: ignore
         if not index.isValid():
             return QModelIndex()
-        child_item: Node = index.internalPointer()
+        assert isinstance(index.internalPointer(), Node)
+        child_item = cast(Node, index.internalPointer())
+        assert isinstance(child_item.parent, Node)
         parent_item: Node = child_item.parent
         if parent_item not in (None, self._root):
             return self.createIndex(parent_item.row, 0, parent_item)
         return QModelIndex()
 
-    def rowCount(self, parent: QModelIndex | QPersistentModelIndex) -> int:
+    def rowCount(self, parent: Union[QModelIndex, QPersistentModelIndex] = QModelIndex()) -> int:  # type: ignore
         if parent.column() > 0:
             return 0
+        parent_node: Node
         if not parent.isValid():
-            parent_item = self._root
+            parent_node = self._root
         else:
-            parent_item: Node = parent.internalPointer()
+            parent_node = cast(Node, parent.internalPointer())
 
-        if isinstance(parent_item, CatalogNode):
+        if isinstance(parent_node, CatalogNode):
             return 0
         else:
-            return len(parent_item.children)
+            return len(parent_node.children)
 
-    def columnCount(self, parent: QModelIndex | QPersistentModelIndex) -> int:
+    def columnCount(self, parent: Union[QModelIndex, QPersistentModelIndex]) -> int:  # type: ignore
         return 1
 
-    def data(self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.DisplayRole) -> Any:
+    def data(self, index: Union[QModelIndex, QPersistentModelIndex],
+             role: Qt.ItemDataRole = Qt.DisplayRole) -> Any:  # type: ignore
         if index.isValid():
-            item: Node = index.internalPointer()
-            if role == Qt.DisplayRole:
+            item = cast(NamedNode, index.internalPointer())
+            if role == Qt.ItemDataRole.DisplayRole:
                 return item.name
-            if role == UUIDDataRole:
+            elif role == UUIDDataRole:
                 if isinstance(item, CatalogNode):
                     return item.uuid
+            elif role == EntityRole:
+                if isinstance(item, CatalogNode):
+                    return item.node
 
-    def flags(self, index: QModelIndex | QPersistentModelIndex) -> int:
+    def flags(self, index: Union[QModelIndex, QPersistentModelIndex]) -> Qt.ItemFlag:
         if index.isValid():
-            item: Node = index.internalPointer()
+            item = cast(Node, index.internalPointer())
             return item.flags()
-        return Qt.NoItemFlags
+        return Qt.ItemFlag.NoItemFlags
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.DisplayRole) -> Any:  # type: ignore
         if role == Qt.DisplayRole:  # type: ignore
@@ -241,6 +249,7 @@ class TscatRootModel(QAbstractItemModel):
             return True
 
         self.events_dropped_on_catalogue.emit(parent.data(UUIDDataRole),
-                                              pickle.loads(data.data('application/x-tscat-event-uuid-list')))
+                                              pickle.loads(
+                                                  data.data('application/x-tscat-event-uuid-list')))  # type: ignore
 
         return True

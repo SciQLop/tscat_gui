@@ -1,9 +1,9 @@
 from typing import Union, Sequence, List
 
 from PySide6.QtCore import QObject, QAbstractItemModel, Signal
+from tscat import _Event, _Catalogue
 
 from .actions import Action
-from .nodes import CatalogNode, EventNode
 from .tscat_root_model import TscatRootModel
 
 
@@ -26,7 +26,7 @@ class _Model(QObject):
     def catalog(self, uid: str) -> QAbstractItemModel:
         return self._tscat_root.catalog(uid)
 
-    def tscat_root(self) -> QAbstractItemModel:
+    def tscat_root(self) -> TscatRootModel:
         return self._tscat_root
 
     @staticmethod
@@ -35,7 +35,7 @@ class _Model(QObject):
         return tscat_driver.do(action)
 
     @staticmethod
-    def entities_from_uuids(uuids: Sequence[str]) -> List[Union[CatalogNode, EventNode]]:
+    def entities_from_uuids(uuids: Sequence[str]) -> List[Union[_Catalogue, _Event]]:
         from .driver import tscat_driver
         return list(map(tscat_driver.entity_from_uuid, uuids))
 
