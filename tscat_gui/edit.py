@@ -199,18 +199,26 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
             else:
                 cls = _delegate_widget_class_factory.get(type(value), QtWidgets.QLabel)
 
-            widget = cls(value)
-            # the editingFinished-signal is not seen by mypy coming from PySide6
-            widget.editingFinished.connect(lambda w=widget, a=attr:  # type: ignore
-                                           self._editing_finished(a, w.value()))
+            widget = cls(value, parent=self)
 
             # special case for UUIDs - read-only
             if attr == 'uuid':
                 widget.setEnabled(False)
-
+            else:
+                # the editingFinished-signal is not seen by mypy coming from PySide6
+                widget.editingFinished.connect(
+                    functools.partial(self._edit_finished_on_widget, widget, attr))
             self._layout.addWidget(widget, row, 1)
 
-    def _editing_finished(self, attr, value):
+    def _edit_finished_on_widget(self, w: QtWidgets.QWidget, a: str) -> None:
+
+        assert isinstance(w, (_MultipleDifferentValuesDelegate, _PredicateDelegate,
+                              IntDelegate, StrDelegate, FloatDelegate,
+                              EditableKeywordListWidget, BoolDelegate, DateTimeDelegate))
+
+        self._editing_finished(a, w.value())
+
+    def _editing_finished(self, attr, value) -> None:
         if value != self.values[attr]:
             self.state.push_undo_command(SetAttributeValue, attr, value)
             self.valuesChanged.emit()
