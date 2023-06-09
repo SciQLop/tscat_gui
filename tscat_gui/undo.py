@@ -153,7 +153,7 @@ class NewCatalogue(_EntityBased):
 
         self.setText('Create new Catalogue')
 
-        self.uuid: str
+        self.uuid: Optional[str] = None
 
     def _redo(self) -> None:
         def creation_callback(action: CreateEntityAction) -> None:
@@ -174,6 +174,7 @@ class NewCatalogue(_EntityBased):
             self._select(self._selected_entities())
 
         from .tscat_driver.model import tscat_model
+        assert self.uuid is not None
         tscat_model.do(RemoveEntitiesAction(remove_callback, [self.uuid], True))
 
 
