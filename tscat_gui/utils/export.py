@@ -1,11 +1,11 @@
-from typing import List
+from typing import List, Optional
 
 from PySide6 import QtCore
 
 from ..tscat_driver.actions import CanonicalizeImportAction, ExportJSONAction
 
 
-def export_to_json(filename: str, uuids: List[str]) -> bool:
+def export_to_json(filename: str, uuids: List[str]) -> Optional[Exception]:
     event_loop = QtCore.QEventLoop()
 
     result = None
