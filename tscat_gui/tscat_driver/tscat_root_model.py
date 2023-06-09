@@ -1,7 +1,10 @@
+import datetime as dt
+import os
 import pickle
-from typing import Dict, Any, Union, cast
+import tempfile
+from typing import Dict, Any, Union, cast, List, Sequence
 
-from PySide6.QtCore import QModelIndex, QAbstractItemModel, QPersistentModelIndex, Qt, QMimeData, Signal
+from PySide6.QtCore import QModelIndex, QAbstractItemModel, QPersistentModelIndex, Qt, QMimeData, Signal, QUrl
 from tscat import _Catalogue
 
 from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEntityAction, RemoveEntitiesAction, \
@@ -11,6 +14,7 @@ from .catalog_model import CatalogModel
 from .driver import tscat_driver
 from .nodes import Node, CatalogNode, TrashNode, RootNode, NamedNode
 from ..model_base.constants import UUIDDataRole, EntityRole
+from ..utils.export import export_to_json
 
 
 class TscatRootModel(QAbstractItemModel):
@@ -253,3 +257,30 @@ class TscatRootModel(QAbstractItemModel):
                                                   data.data('application/x-tscat-event-uuid-list')))  # type: ignore
 
         return True
+
+    def mimeTypes(self) -> List[str]:
+        return super().mimeTypes() + ['text/uri-list']
+
+    def mimeData(self, indexes: Sequence[QModelIndex]) -> QMimeData:
+        mime_data = super().mimeData(indexes)
+
+        urls: List[QUrl] = []
+        for index in indexes:
+            now = dt.datetime.now().isoformat()
+            catalogue = self.data(index, EntityRole)
+
+            path = os.path.join(tempfile.gettempdir(), 'tscat_gui', f'{catalogue.name}-{now}-export.json')
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+
+            print('exporting', catalogue, path)
+            result = export_to_json(path, [catalogue.uuid])
+
+            if result is None:
+                path_url = QUrl.fromLocalFile(path)
+                urls.append(path_url)
+
+        mime_data.setUrls(urls)
+
+        print('dragging')
+
+        return mime_data

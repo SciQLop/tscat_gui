@@ -37,7 +37,6 @@ class _TSCatConcatenateTablePM(QtCore.QConcatenateTablesProxyModel):
             indexes.append(model.index_from_uuid(uuid))
 
         indexes = list(map(self.mapFromSource, indexes))
-        print(indexes)
         return indexes
 
 
@@ -105,7 +104,6 @@ class TSCatGUI(QtWidgets.QWidget):
 
             else:
                 indexes = list(itertools.chain(*list(map(self.event_model.indexes_from_uuid, uuids))))
-                print(indexes)
                 indexes = list(map(self.events_sort_model.mapFromSource, indexes))
                 self.programmatic_select = True
                 self.events_view.selectionModel().clear()
@@ -289,8 +287,8 @@ class TSCatGUI(QtWidgets.QWidget):
 
         self.catalogues_view = QtWidgets.QTreeView()
         self.catalogues_view.setMinimumSize(300, 900)
-        self.catalogues_view.setDragEnabled(True)
-        self.catalogues_view.setDragDropMode(QtWidgets.QTreeView.DragDropMode.DragDrop)
+        self.catalogues_view.setDragEnabled(False)
+        self.catalogues_view.setDragDropMode(QtWidgets.QTreeView.DragDropMode.DropOnly)
         self.catalogues_view.setAcceptDrops(True)
         self.catalogues_view.setDropIndicatorShown(True)
         self.catalogues_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)  # type: ignore
