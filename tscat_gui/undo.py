@@ -159,6 +159,7 @@ class NewCatalogue(_EntityBased):
         def creation_callback(action: CreateEntityAction) -> None:
             assert action.entity is not None
             self.uuid = action.entity.uuid
+            assert self.uuid is not None
             self._select([self.uuid], tscat._Catalogue)
 
         from .tscat_driver.model import tscat_model
