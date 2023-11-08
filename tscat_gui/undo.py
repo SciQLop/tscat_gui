@@ -185,7 +185,7 @@ class NewEvent(_EntityBased):
 
         self.setText('Create new Event')
 
-        self.uuid: str
+        self.uuid: Optional[str] = None
 
     def _redo(self):
         from .tscat_driver.model import tscat_model
