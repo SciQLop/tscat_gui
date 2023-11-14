@@ -13,7 +13,7 @@ from ..model_base.constants import UUIDDataRole, EntityRole
 
 
 class CatalogModel(QAbstractTableModel):
-    _columns = ['start', 'stop', 'author', 'tags', 'products']
+    _columns = ['start', 'stop', 'author', 'tags', 'products', 'rating']
 
     def __init__(self, root: CatalogNode):
         super().__init__()

@@ -85,9 +85,52 @@ class _MultipleDifferentValues(list):
         self.attribute = attribute
 
 
+class _RatingDelegate(QtWidgets.QWidget):
+    editingFinished = QtCore.Signal()
+
+    def __init__(self, value: Optional[int], parent: Optional[QtWidgets.QWidget] = None):
+        super().__init__(parent)
+
+        self.label = QtWidgets.QLabel(self)
+        self.slider = QtWidgets.QSlider(self)
+        self.slider.setOrientation(QtCore.Qt.Horizontal)  # type: ignore
+        self.slider.setRange(0, 10)
+        self.slider.setTickInterval(1)
+        self.slider.setTickPosition(QtWidgets.QSlider.TicksBelow)  # type: ignore
+        self.slider.valueChanged.connect(self._slider_value_changed)  # type: ignore
+        self.slider.sliderReleased.connect(lambda: self.editingFinished.emit())  # type: ignore
+
+        if value:
+            self.label.setText(str(value))
+            self.slider.setValue(value)
+        else:
+            self.label.setText(" ")
+            self.slider.setValue(0)
+
+        layout = QtWidgets.QHBoxLayout(self)
+        layout.addWidget(self.slider)
+        layout.addWidget(self.label)
+        layout.addStretch()
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+
+    def _slider_value_changed(self, value: int) -> None:
+        if value == 0:
+            self.label.setText(" ")
+        else:
+            self.label.setText(str(value))
+
+    def value(self) -> Any:
+        if self.slider.value() == 0:
+            return None
+        else:
+            return self.slider.value()
+
+
 _delegate_widget_class_factory = {
     'uuid': _UuidLabelDelegate,
     'predicate': _PredicateDelegate,
+    'rating': _RatingDelegate,
 
     _ReadOnlyString: _UuidLabelDelegate,
     int: IntDelegate,
@@ -212,7 +255,7 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
 
     def _edit_finished_on_widget(self, w: QtWidgets.QWidget, a: str) -> None:
 
-        assert isinstance(w, (_MultipleDifferentValuesDelegate, _PredicateDelegate,
+        assert isinstance(w, (_MultipleDifferentValuesDelegate, _PredicateDelegate, _RatingDelegate,
                               IntDelegate, StrDelegate, FloatDelegate,
                               EditableKeywordListWidget, BoolDelegate, DateTimeDelegate))
 
