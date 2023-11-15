@@ -190,10 +190,13 @@ class NewEvent(_EntityBased):
     def _redo(self):
         from .tscat_driver.model import tscat_model
 
+        def add_to_catalogue_callback(action: AddEventsToCatalogueAction) -> None:
+            self._select([self.uuid], tscat._Event)
+
         def creation_callback(action: CreateEntityAction) -> None:
             self.uuid = action.entity.uuid
-            self._select([self.uuid], tscat._Event)
-            tscat_model.do(AddEventsToCatalogueAction(None, [self.uuid], self._select_state.selected_catalogues[0]))
+            tscat_model.do(AddEventsToCatalogueAction(add_to_catalogue_callback,
+                                                      [self.uuid], self._select_state.selected_catalogues[0]))
 
         tscat_model.do(CreateEntityAction(creation_callback, tscat._Event,
                                           {
