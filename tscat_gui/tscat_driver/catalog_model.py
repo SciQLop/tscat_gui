@@ -19,7 +19,7 @@ class CatalogModel(QAbstractTableModel):
         super().__init__()
         self._root = root
         self._trash = TrashNode()
-        tscat_driver.action_done.connect(self._driver_action_done)
+        tscat_driver.action_done_prioritised.connect(self._driver_action_done)
 
     def _driver_action_done(self, action: Action) -> None:
         if isinstance(action, GetCatalogueAction):
