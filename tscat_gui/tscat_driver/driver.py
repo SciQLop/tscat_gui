@@ -26,6 +26,7 @@ class _TscatDriverWorker(QThread):
 class TscatDriver(QObject):
     # internal signals used between driver and worker
     _do_action = Signal(Action)
+    action_done_prioritised = Signal(Action)
     action_done = Signal(Action)
 
     def __init__(self, parent: Optional[QObject] = None):
@@ -69,6 +70,7 @@ class TscatDriver(QObject):
             for c in action.catalogues:
                 self._entity_cache[c.uuid] = c
 
+        self.action_done_prioritised.emit(action)
         self.action_done.emit(action)
 
     def entity_from_uuid(self, uuid: str) -> Union[_Event, _Catalogue]:
