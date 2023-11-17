@@ -97,10 +97,17 @@ class TSCatGUI(QtWidgets.QWidget):
                 from .tscat_driver.model import tscat_model
                 new_models = set(map(tscat_model.catalog, uuids))
 
+                # temporarily disconnect the selectionChanged signal to avoid unnecessary updates
+                self.events_view.selectionModel().selectionChanged.disconnect(
+                    self.__current_event_changed)  # type: ignore
+
                 for i in current_models - new_models:
                     self.event_model.removeSourceModel(i)
                 for i in new_models - current_models:
                     self.event_model.addSourceModel(i)
+
+                self.events_view.selectionModel().selectionChanged.connect(
+                    self.__current_event_changed, type=QtCore.Qt.DirectConnection)  # type: ignore
 
             else:
                 indexes = list(itertools.chain(*list(map(self.event_model.indexes_from_uuid, uuids))))
