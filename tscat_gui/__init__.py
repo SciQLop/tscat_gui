@@ -121,30 +121,34 @@ class TSCatGUI(QtWidgets.QWidget):
                 self.programmatic_select = False
 
             if action == 'active_select':
-                self.move_to_trash_action.setEnabled(False)
-                self.restore_from_trash_action.setEnabled(False)
-                self.delete_action.setEnabled(False)
-                self.new_event_action.setEnabled(False)
-                self.export_action.setEnabled(False)
+                self._enable_disable_symbol_actions(uuids)
 
-                if uuids:
-                    if len(uuids) == 1:
-                        self.new_event_action.setEnabled(True)
+    def _enable_disable_symbol_actions(self, uuids: Sequence[str]) -> None:
+        # Enable/disable actions based on the current selection
+        self.move_to_trash_action.setEnabled(False)
+        self.restore_from_trash_action.setEnabled(False)
+        self.delete_action.setEnabled(False)
+        self.new_event_action.setEnabled(False)
+        self.export_action.setEnabled(False)
 
-                    enable_restore = False
-                    enable_move_to_trash = False
+        if uuids:
+            if len(uuids) == 1:
+                self.new_event_action.setEnabled(True)
 
-                    from .tscat_driver.model import tscat_model
-                    for entity in tscat_model.entities_from_uuids(uuids):
-                        if entity.is_removed():
-                            enable_restore |= True
-                        else:
-                            enable_move_to_trash |= True
+            enable_restore = False
+            enable_move_to_trash = False
 
-                    self.restore_from_trash_action.setEnabled(enable_restore)
-                    self.move_to_trash_action.setEnabled(enable_move_to_trash)
-                    self.delete_action.setEnabled(True)
-                    self.export_action.setEnabled(True)
+            from .tscat_driver.model import tscat_model
+            for entity in tscat_model.entities_from_uuids(uuids):
+                if entity.is_removed():
+                    enable_restore |= True
+                else:
+                    enable_move_to_trash |= True
+
+            self.restore_from_trash_action.setEnabled(enable_restore)
+            self.move_to_trash_action.setEnabled(enable_move_to_trash)
+            self.delete_action.setEnabled(True)
+            self.export_action.setEnabled(True)
 
     def __current_event_changed(self, _: QtCore.QModelIndex, __: QtCore.QModelIndex) -> None:
         if not self.programmatic_select:
