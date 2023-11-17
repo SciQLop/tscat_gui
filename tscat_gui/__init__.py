@@ -87,11 +87,13 @@ class TSCatGUI(QtWidgets.QWidget):
             if type == _Catalogue:
                 indexes = list(map(self.catalogue_model.index_from_uuid, uuids))
                 indexes = list(map(self.catalogue_sort_filter_model.mapFromSource, indexes))
-                self.programmatic_select = True
-                self.catalogues_view.selectionModel().clear()
-                for index in indexes:
-                    self.catalogues_view.selectionModel().select(index, QtCore.QItemSelectionModel.SelectionFlag.Select)
-                self.programmatic_select = False
+
+                if set(self.catalogues_view.selectedIndexes()) != set(indexes):
+                    self.programmatic_select = True
+                    self.catalogues_view.selectionModel().clear()
+                    for index in indexes:
+                        self.catalogues_view.selectionModel().select(index, QtCore.QItemSelectionModel.SelectionFlag.Select)
+                    self.programmatic_select = False
 
                 current_models = set(self.event_model.sourceModels())
                 from .tscat_driver.model import tscat_model
@@ -112,13 +114,17 @@ class TSCatGUI(QtWidgets.QWidget):
             else:
                 indexes = list(itertools.chain(*list(map(self.event_model.indexes_from_uuid, uuids))))
                 indexes = list(map(self.events_sort_model.mapFromSource, indexes))
-                self.programmatic_select = True
-                self.events_view.selectionModel().clear()
-                for index in indexes:
-                    self.events_view.selectionModel().select(index,
-                                                             QtCore.QItemSelectionModel.SelectionFlag.Select |
-                                                             QtCore.QItemSelectionModel.SelectionFlag.Rows)
-                self.programmatic_select = False
+
+                current_selected_indexes_first_column = set(index for index in self.events_view.selectedIndexes()
+                                                            if index.column() == 0)
+                if current_selected_indexes_first_column != set(indexes):
+                    self.programmatic_select = True
+                    self.events_view.selectionModel().clear()
+                    for index in indexes:
+                        self.events_view.selectionModel().select(index,
+                                                                 QtCore.QItemSelectionModel.SelectionFlag.Select |
+                                                                 QtCore.QItemSelectionModel.SelectionFlag.Rows)
+                    self.programmatic_select = False
 
             if action == 'active_select':
                 self._enable_disable_symbol_actions(uuids)
