@@ -1,7 +1,8 @@
 import pickle
 from typing import Any, List, Optional, Sequence, Union
 
-from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, QPersistentModelIndex, QMimeData
+from PySide6.QtCore import QAbstractTableModel, QMimeData, QModelIndex, QPersistentModelIndex, Qt
+from PySide6.QtGui import QColor
 
 from tscat import _Event
 from .actions import Action, AddEventsToCatalogueAction, DeleteAttributeAction, DeletePermanentlyAction, \
@@ -28,7 +29,10 @@ class CatalogModel(QAbstractTableModel):
                     self._trash.set_children(list(map(EventNode, action.events)))
                 else:
                     self.beginResetModel()
-                    self._root.set_children(list(map(EventNode, action.events)))
+                    children: List[EventNode] = []
+                    for e, i in zip(action.events, action.query_info):
+                        children.append(EventNode(e, i.assigned))
+                    self._root.set_children(children)
                     self.endResetModel()
 
         elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
@@ -154,6 +158,9 @@ class CatalogModel(QAbstractTableModel):
                 return str(child.node.__dict__[key])
             else:
                 return str(child.node.variable_attributes())
+        elif role == Qt.BackgroundRole:  # type: ignore
+            if not child.is_assigned():
+                return QColor(Qt.lightGray)  # type: ignore
         elif role == UUIDDataRole:
             return child.uuid
         elif role == EntityRole:

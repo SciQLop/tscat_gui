@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Callable, Union, Type, Any, Sequence, Optional, List
+from typing import Any, Callable, List, Optional, Sequence, Type, Union
 
-from tscat import _Catalogue, _Event, get_catalogues, get_events, create_catalogue, add_events_to_catalogue, \
-    create_event, remove_events_from_catalogue, save, canonicalize_json_import, import_canonicalized_dict, export_json
+from tscat import EventQueryInformation, _Catalogue, _Event, add_events_to_catalogue, canonicalize_json_import, \
+    create_catalogue, create_event, export_json, get_catalogues, get_events, import_canonicalized_dict, \
+    remove_events_from_catalogue, save
 from tscat.filtering import UUID
 
 
@@ -58,10 +59,11 @@ class GetCatalogueAction(Action):
     uuid: str
     removed_items: bool = False
     events: List[_Event] = field(default_factory=list)
+    query_info: List[EventQueryInformation] = field(default_factory=list)
 
     def action(self) -> None:
         catalogue = get_catalogues(UUID(self.uuid))[0]
-        self.events = get_events(catalogue, removed_items=self.removed_items)
+        self.events, self.query_info = get_events(catalogue, removed_items=self.removed_items)
 
 
 @dataclass
