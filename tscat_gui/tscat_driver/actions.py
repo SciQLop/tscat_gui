@@ -100,7 +100,7 @@ class AddEventsToCatalogueAction(Action):
         assert isinstance(catalogue, _Catalogue)
 
         # clean uuids of already existing events (assigned, not filtered)
-        existing_events_uuids = set(event.uuid for event in get_events(catalogue, assigned_only=True))
+        existing_events_uuids = set(event.uuid for event in get_events(catalogue, assigned_only=True)[0])
         self.uuids = list(set(self.uuids) - existing_events_uuids)
         add_events_to_catalogue(catalogue, list(map(self._event, self.uuids)))
 
@@ -239,7 +239,7 @@ class DeletePermanentlyAction(Action):
     def action(self) -> None:
         for entity in map(self._entity, self.uuids):
             if isinstance(entity, _Catalogue):
-                linked_uuids = [e.uuid for e in get_events(entity, assigned_only=True)]
+                linked_uuids = [e.uuid for e in get_events(entity, assigned_only=True)[0]]
             elif isinstance(entity, _Event):
                 linked_uuids = [e.uuid for e in get_catalogues(entity)]
 

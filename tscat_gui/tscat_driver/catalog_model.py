@@ -25,13 +25,12 @@ class CatalogModel(QAbstractTableModel):
     def _driver_action_done(self, action: Action) -> None:
         if isinstance(action, GetCatalogueAction):
             if action.uuid == self._root.uuid:
+                children = [EventNode(e, i.assigned) for e, i in zip(action.events, action.query_info)]
                 if action.removed_items:
-                    self._trash.set_children(list(map(EventNode, action.events)))
+                    # unused for now
+                    self._trash.set_children(children)
                 else:
                     self.beginResetModel()
-                    children: List[EventNode] = []
-                    for e, i in zip(action.events, action.query_info):
-                        children.append(EventNode(e, i.assigned))
                     self._root.set_children(children)
                     self.endResetModel()
 
@@ -49,7 +48,7 @@ class CatalogModel(QAbstractTableModel):
 
         elif isinstance(action, AddEventsToCatalogueAction):
             if action.catalogue_uuid == self._root.uuid:
-                nodes = list(map(lambda x: EventNode(x), map(tscat_driver.event_from_uuid, action.uuids)))
+                nodes = list(map(lambda x: EventNode(x, True), map(tscat_driver.event_from_uuid, action.uuids)))
 
                 removed_nodes = list(filter(lambda x: x.node.is_removed(), nodes))
                 nodes = list(filter(lambda x: not x.node.is_removed(), nodes))
@@ -65,7 +64,7 @@ class CatalogModel(QAbstractTableModel):
             nodes: List[EventNode] = []  # type: ignore
             for e in action.deleted_entities:
                 if e.type == _Event:
-                    event_node = EventNode(e.restored_entity)
+                    event_node = EventNode(e.restored_entity, True)
                     if e.restored_entity.is_removed():
                         removed_nodes.append(event_node)
                     else:
