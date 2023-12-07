@@ -249,8 +249,8 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
                 widget.setEnabled(False)
             else:
                 # the editingFinished-signal is not seen by mypy coming from PySide6
-                widget.editingFinished.connect(
-                    functools.partial(self._edit_finished_on_widget, widget, attr))
+                widget.editingFinished.connect(  # type: ignore
+                    functools.partial(self._edit_finished_on_widget, widget, attr))  # type: ignore
             self._layout.addWidget(widget, row, 1)
 
     def _edit_finished_on_widget(self, w: QtWidgets.QWidget, a: str) -> None:
