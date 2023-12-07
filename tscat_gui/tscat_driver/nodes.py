@@ -96,9 +96,11 @@ class TrashNode(NamedNode):
 
 
 class EventNode(Node):
-    def __init__(self, event: _Event):
+    def __init__(self, event: _Event, assigned: bool) -> None:
         super().__init__()
         self._entity = event
+        self._assigned = assigned
+
 
     @property
     def uuid(self) -> str:
@@ -114,6 +116,9 @@ class EventNode(Node):
 
     def flags(self):
         return super().flags() | QtCore.Qt.ItemIsDragEnabled  # type: ignore
+
+    def is_assigned(self) -> bool:
+        return self._assigned
 
 
 class CatalogNode(NamedNode):

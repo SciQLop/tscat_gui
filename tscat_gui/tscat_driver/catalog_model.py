@@ -1,19 +1,20 @@
 import pickle
-from typing import Optional, Union, List, Sequence, Any
+from typing import Any, List, Optional, Sequence, Union
 
-from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, QPersistentModelIndex, QMimeData
+from PySide6.QtCore import QAbstractTableModel, QMimeData, QModelIndex, QPersistentModelIndex, Qt
+from PySide6.QtGui import QColor
+
 from tscat import _Event
-
-from .actions import GetCatalogueAction, Action, SetAttributeAction, DeleteAttributeAction, \
-    AddEventsToCatalogueAction, RemoveEntitiesAction, RemoveEventsFromCatalogueAction, MoveToTrashAction, \
-    RestoreFromTrashAction, DeletePermanentlyAction, RestorePermanentlyDeletedAction
+from .actions import Action, AddEventsToCatalogueAction, DeleteAttributeAction, DeletePermanentlyAction, \
+    GetCatalogueAction, MoveToTrashAction, RemoveEntitiesAction, RemoveEventsFromCatalogueAction, \
+    RestoreFromTrashAction, RestorePermanentlyDeletedAction, SetAttributeAction
 from .driver import tscat_driver
 from .nodes import CatalogNode, EventNode, TrashNode
-from ..model_base.constants import UUIDDataRole, EntityRole
+from ..model_base.constants import EntityRole, UUIDDataRole
 
 
 class CatalogModel(QAbstractTableModel):
-    _columns = ['start', 'stop', 'author', 'tags', 'products']
+    _columns = ['start', 'stop', 'author', 'tags', 'products', 'rating']
 
     def __init__(self, root: CatalogNode):
         super().__init__()
@@ -24,11 +25,13 @@ class CatalogModel(QAbstractTableModel):
     def _driver_action_done(self, action: Action) -> None:
         if isinstance(action, GetCatalogueAction):
             if action.uuid == self._root.uuid:
+                children = [EventNode(e, i.assigned) for e, i in zip(action.events, action.query_info)]
                 if action.removed_items:
-                    self._trash.set_children(list(map(EventNode, action.events)))
+                    # unused for now
+                    self._trash.set_children(children)
                 else:
                     self.beginResetModel()
-                    self._root.set_children(list(map(EventNode, action.events)))
+                    self._root.set_children(children)
                     self.endResetModel()
 
         elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
@@ -45,7 +48,7 @@ class CatalogModel(QAbstractTableModel):
 
         elif isinstance(action, AddEventsToCatalogueAction):
             if action.catalogue_uuid == self._root.uuid:
-                nodes = list(map(lambda x: EventNode(x), map(tscat_driver.event_from_uuid, action.uuids)))
+                nodes = list(map(lambda x: EventNode(x, True), map(tscat_driver.event_from_uuid, action.uuids)))
 
                 removed_nodes = list(filter(lambda x: x.node.is_removed(), nodes))
                 nodes = list(filter(lambda x: not x.node.is_removed(), nodes))
@@ -61,7 +64,7 @@ class CatalogModel(QAbstractTableModel):
             nodes: List[EventNode] = []  # type: ignore
             for e in action.deleted_entities:
                 if e.type == _Event:
-                    event_node = EventNode(e.restored_entity)
+                    event_node = EventNode(e.restored_entity, True)
                     if e.restored_entity.is_removed():
                         removed_nodes.append(event_node)
                     else:
@@ -154,6 +157,9 @@ class CatalogModel(QAbstractTableModel):
                 return str(child.node.__dict__[key])
             else:
                 return str(child.node.variable_attributes())
+        elif role == Qt.BackgroundRole:  # type: ignore
+            if not child.is_assigned():
+                return QColor(Qt.lightGray)  # type: ignore
         elif role == UUIDDataRole:
             return child.uuid
         elif role == EntityRole:
