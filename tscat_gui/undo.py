@@ -191,6 +191,7 @@ class NewEvent(_EntityBased):
         from .tscat_driver.model import tscat_model
 
         def add_to_catalogue_callback(action: AddEventsToCatalogueAction) -> None:
+            assert self.uuid is not None
             self._select([self.uuid], tscat._Event)
 
         def creation_callback(action: CreateEntityAction) -> None:
