@@ -5,22 +5,22 @@ __email__ = 'p@yai.se'
 __version__ = '0.2.0'
 
 import datetime as dt
-import itertools
 import os
-import sys
 from pathlib import Path
-from typing import Union, Sequence, Type, cast, Optional, List
+from typing import List, Optional, Sequence, Type, Union, cast
 
-from PySide6 import QtWidgets, QtGui, QtCore
-from tscat import _Event, _Catalogue
+import itertools
+import sys
+from PySide6 import QtCore, QtGui, QtWidgets
 
+from tscat import _Catalogue, _Event
 from .edit import EntityEditView
 from .model_base.constants import UUIDDataRole
 from .state import AppState
-from .tscat_driver.actions import SaveAction, CreateEntityAction, AddEventsToCatalogueAction, SetAttributeAction, \
-    DeleteAttributeAction, Action, MoveToTrashAction, CanonicalizeImportAction
-from .undo import NewCatalogue, MoveEntityToTrash, RestoreEntityFromTrash, DeletePermanently, NewEvent, Import, \
-    AddEventsToCatalogue
+from .tscat_driver.actions import Action, AddEventsToCatalogueAction, CanonicalizeImportAction, CreateEntityAction, \
+    DeleteAttributeAction, MoveToTrashAction, SaveAction, SetAttributeAction
+from .undo import AddEventsToCatalogue, DeletePermanently, Import, MoveEntityToTrash, NewCatalogue, NewEvent, \
+    RestoreEntityFromTrash
 from .utils.export import export_to_json
 
 
@@ -92,7 +92,8 @@ class TSCatGUI(QtWidgets.QWidget):
                     self.programmatic_select = True
                     self.catalogues_view.selectionModel().clear()
                     for index in indexes:
-                        self.catalogues_view.selectionModel().select(index, QtCore.QItemSelectionModel.SelectionFlag.Select)
+                        self.catalogues_view.selectionModel().select(index,
+                                                                     QtCore.QItemSelectionModel.SelectionFlag.Select)
                     self.programmatic_select = False
 
                 current_models = set(self.event_model.sourceModels())
@@ -100,15 +101,15 @@ class TSCatGUI(QtWidgets.QWidget):
                 new_models = set(map(tscat_model.catalog, uuids))
 
                 # temporarily disconnect the selectionChanged signal to avoid unnecessary updates
-                self.events_view.selectionModel().selectionChanged.disconnect(
-                    self.__current_event_changed)  # type: ignore
+                self.events_view.selectionModel().selectionChanged.disconnect(  # type: ignore
+                    self.__current_event_changed)
 
                 for i in current_models - new_models:
                     self.event_model.removeSourceModel(i)
                 for i in new_models - current_models:
                     self.event_model.addSourceModel(i)
 
-                self.events_view.selectionModel().selectionChanged.connect(
+                self.events_view.selectionModel().selectionChanged.connect(  # type: ignore
                     self.__current_event_changed, type=QtCore.Qt.DirectConnection)  # type: ignore
 
             else:
@@ -282,7 +283,7 @@ class TSCatGUI(QtWidgets.QWidget):
         self.events_view.setDragEnabled(True)
         self.events_view.setDragDropMode(QtWidgets.QTreeView.DragDropMode.DragOnly)
 
-        self.events_view.selectionModel().selectionChanged.connect(
+        self.events_view.selectionModel().selectionChanged.connect(  # type: ignore
             self.__current_event_changed, type=QtCore.Qt.DirectConnection)  # type: ignore
 
         # Edit View

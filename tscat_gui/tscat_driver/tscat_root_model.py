@@ -57,13 +57,13 @@ class TscatRootModel(QAbstractItemModel):
             for row, child in enumerate(self._root.children):
                 if child.uuid == action.uuid:
                     index = self.index(row, 0, QModelIndex())
-                    self.dataChanged.emit(index, index)
+                    self.dataChanged.emit(index, index)  # type: ignore
                     return
 
             for row, child in enumerate(self._trash.children):
                 if child.uuid == action.uuid:
                     index = self.index(row, 0, self._trash_index())
-                    self.dataChanged.emit(index, index)
+                    self.dataChanged.emit(index, index)  # type: ignore
 
         elif isinstance(action, CreateEntityAction):
             if isinstance(action.entity, _Catalogue):
@@ -127,13 +127,13 @@ class TscatRootModel(QAbstractItemModel):
                     if isinstance(child, CatalogNode) and child.uuid == c.uuid:
                         child.node = c
                         index = self.index(row, 0, QModelIndex())
-                        self.dataChanged.emit(index, index)
+                        self.dataChanged.emit(index, index)  # type: ignore
 
                 for row, child in enumerate(self._trash.children):
                     if isinstance(child, CatalogNode) and child.uuid == c.uuid:
                         child.node = c
                         index = self.index(row, 0, self._trash_index())
-                        self.dataChanged.emit(index, index)
+                        self.dataChanged.emit(index, index)  # type: ignore
 
         elif isinstance(action, ImportCanonicalizedDictAction):
             self.beginInsertRows(QModelIndex(),

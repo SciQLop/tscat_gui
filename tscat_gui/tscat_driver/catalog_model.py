@@ -1,19 +1,19 @@
 import pickle
-from typing import Optional, Union, List, Sequence, Any
+from typing import Any, List, Optional, Sequence, Union
 
 from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, QPersistentModelIndex, QMimeData
-from tscat import _Event
 
-from .actions import GetCatalogueAction, Action, SetAttributeAction, DeleteAttributeAction, \
-    AddEventsToCatalogueAction, RemoveEntitiesAction, RemoveEventsFromCatalogueAction, MoveToTrashAction, \
-    RestoreFromTrashAction, DeletePermanentlyAction, RestorePermanentlyDeletedAction
+from tscat import _Event
+from .actions import Action, AddEventsToCatalogueAction, DeleteAttributeAction, DeletePermanentlyAction, \
+    GetCatalogueAction, MoveToTrashAction, RemoveEntitiesAction, RemoveEventsFromCatalogueAction, \
+    RestoreFromTrashAction, RestorePermanentlyDeletedAction, SetAttributeAction
 from .driver import tscat_driver
 from .nodes import CatalogNode, EventNode, TrashNode
-from ..model_base.constants import UUIDDataRole, EntityRole
+from ..model_base.constants import EntityRole, UUIDDataRole
 
 
 class CatalogModel(QAbstractTableModel):
-    _columns = ['start', 'stop', 'author', 'tags', 'products']
+    _columns = ['start', 'stop', 'author', 'tags', 'products', 'rating']
 
     def __init__(self, root: CatalogNode):
         super().__init__()
