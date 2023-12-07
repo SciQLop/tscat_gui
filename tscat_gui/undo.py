@@ -196,6 +196,7 @@ class NewEvent(_EntityBased):
 
         def creation_callback(action: CreateEntityAction) -> None:
             self.uuid = action.entity.uuid
+            assert self.uuid is not None  # satisfy mypy
             tscat_model.do(AddEventsToCatalogueAction(add_to_catalogue_callback,
                                                       [self.uuid], self._select_state.selected_catalogues[0]))
 
