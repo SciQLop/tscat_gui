@@ -284,3 +284,9 @@ class TscatRootModel(QAbstractItemModel):
         print('dragging')
 
         return mime_data
+
+    def catalogue_nodes(self, in_trash: bool) -> Sequence[CatalogNode]:
+        if in_trash:
+            return self._trash.children
+        else:
+            return self._root.children
