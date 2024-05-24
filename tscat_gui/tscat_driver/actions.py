@@ -62,8 +62,10 @@ class GetCatalogueAction(Action):
     query_info: List[EventQueryInformation] = field(default_factory=list)
 
     def action(self) -> None:
-        catalogue = get_catalogues(UUID(self.uuid))[0]
-        self.events, self.query_info = get_events(catalogue, removed_items=self.removed_items)
+        catalogues = get_catalogues(UUID(self.uuid))
+        if len(catalogues) == 0:
+            catalogues = get_catalogues(UUID(self.uuid), removed_items=True)
+        self.events, self.query_info = get_events(catalogues[0], removed_items=self.removed_items)
 
 
 @dataclass

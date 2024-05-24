@@ -1,4 +1,5 @@
 import datetime as dt
+import itertools
 import os
 import pickle
 import tempfile
@@ -144,7 +145,7 @@ class TscatRootModel(QAbstractItemModel):
 
     def catalog(self, uuid: str) -> CatalogModel:
         if uuid not in self._catalogues:
-            for child in self._root.children:
+            for child in itertools.chain(self._root.children, self._trash.children):
                 if uuid == child.uuid:
                     break
             else:
