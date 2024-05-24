@@ -101,7 +101,6 @@ class EventNode(Node):
         self._entity = event
         self._assigned = assigned
 
-
     @property
     def uuid(self) -> str:
         return self._entity.uuid

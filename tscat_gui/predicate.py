@@ -1,16 +1,14 @@
-import typing
-
-from PySide6 import QtCore, QtWidgets, QtGui
-
-from .utils.helper import AttributeNameValidator, IntDelegate, FloatDelegate, DateTimeDelegate, BoolDelegate, \
-    StrDelegate
-from .utils.editable_label import EditableLabel
-
-from typing import Union, Type, Optional, Dict, cast
-
-from tscat.filtering import Comparison, Field, Attribute, Any, All, Not, In, InCatalogue, Has, Predicate, Match
-import tscat.filtering
 import datetime as dt
+import typing
+from typing import Dict, Optional, Type, Union, cast
+
+from PySide6 import QtCore, QtGui, QtWidgets
+
+import tscat.filtering
+from tscat.filtering import All, Any, Attribute, Comparison, Field, Has, In, InCatalogue, Match, Not, Predicate
+from .utils.editable_label import EditableLabel
+from .utils.helper import AttributeNameValidator, BoolDelegate, DateTimeDelegate, FloatDelegate, IntDelegate, \
+    StrDelegate
 
 
 class _PredicateWidget(QtWidgets.QWidget):
@@ -312,11 +310,17 @@ class _InCatalogue(_PredicateWidget):
         c.addWidget(self._op_label)
 
         self.catalogues = QtWidgets.QComboBox()
-        for cat in tscat.get_catalogues():
-            self.catalogues.addItem(cat.name, cat)
 
-        for cat in tscat.get_catalogues(removed_items=True):
-            self.catalogues.addItem(cat.name + " (in trash)", cat)
+        from .tscat_driver.model import tscat_model
+        from .tscat_driver.nodes import CatalogNode
+
+        for cat in tscat_model.tscat_root().catalogue_nodes(in_trash=False):
+            if isinstance(cat, CatalogNode):
+                self.catalogues.addItem(cat.name, cat.node)
+
+        for cat in tscat_model.tscat_root().catalogue_nodes(in_trash=True):
+            if isinstance(cat, CatalogNode):
+                self.catalogues.addItem(cat.name + " (in trash)", cat.node)
 
         if predicate is not None:
             for index in range(self.catalogues.count()):
@@ -577,7 +581,7 @@ class _DeletePredicateWidget(QtWidgets.QToolButton):
 
         self.setText('✖')
 
-        self.clicked.connect(lambda: cast(widget.parent(), QtWidgets.QWidget).delete_child(widget))  # type: ignore
+        self.clicked.connect(lambda: widget.parent().delete_child(widget))  # type: ignore
 
 
 class SimplePredicateEditDialog(QtWidgets.QDialog):
