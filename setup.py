@@ -12,7 +12,7 @@ with open('HISTORY.rst') as history_file:
 
 requirements = [
     'PySide6',
-    'tscat',
+    'tscat==0.3.*',
 ]
 
 test_requirements = ['pytest>=3', ]
