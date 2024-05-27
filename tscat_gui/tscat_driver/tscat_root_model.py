@@ -207,7 +207,7 @@ class TscatRootModel(QAbstractItemModel):
         else:
             return len(parent_node.children)
 
-    def columnCount(self, parent: Union[QModelIndex, QPersistentModelIndex]) -> int:  # type: ignore
+    def columnCount(self, parent: Union[QModelIndex, QPersistentModelIndex] = None) -> int:  # type: ignore
         return 1
 
     def data(self, index: Union[QModelIndex, QPersistentModelIndex],
