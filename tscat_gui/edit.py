@@ -273,7 +273,9 @@ class FixedAttributesGroupBox(AttributesGroupBox):
     def __init__(self,
                  state: AppState,
                  parent: Optional[QtWidgets.QWidget] = None):
-        super().__init__("Global", state, parent)
+        super().__init__("", state, parent)
+
+        self.setStyleSheet("QGroupBox { font-weight: bold; }")
 
     def setup(self, entities: List[Union[tscat._Catalogue, tscat._Event]]) -> None:
         values: Dict[str, Any] = {}
@@ -307,9 +309,11 @@ class CustomAttributesGroupBox(AttributesGroupBox):
     def __init__(self,
                  state: AppState,
                  parent: Optional[QtWidgets.QWidget] = None) -> None:
-        super().__init__("Custom", state, parent)
+        super().__init__("Custom fields", state, parent)
 
         self.all_attribute_names: List[str] = []
+
+        self.setStyleSheet("QGroupBox { font-weight: bold; }")
 
     def setup(self, entities: List[Union[tscat._Catalogue, tscat._Event]]) -> None:
         if len(entities) > 1:
@@ -397,6 +401,8 @@ class CatalogueMetaDataGroupBox(AttributesGroupBox):
                  state: AppState,
                  parent: Optional[QtWidgets.QWidget] = None):
         super().__init__("Catalogue(s) information", state, parent)
+
+        self.setStyleSheet("QGroupBox { font-weight: bold; }")
 
     def setup(self, entities: List[Union[tscat._Catalogue, tscat._Event]]) -> None:
 
