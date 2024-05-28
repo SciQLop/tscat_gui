@@ -219,6 +219,11 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
         self.values = values
         self.attribute_name_labels = {}
         for row, attr in enumerate(values.keys()):
+
+            # special case for UUIDs - hide uuid-attribute
+            if attr == 'uuid':
+                continue
+
             label = self.create_label(attr)
             self._layout.addWidget(label, row, 0)
 
@@ -244,13 +249,9 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
 
             widget = cls(value, parent=self)
 
-            # special case for UUIDs - read-only
-            if attr == 'uuid':
-                widget.setEnabled(False)
-            else:
-                # the editingFinished-signal is not seen by mypy coming from PySide6
-                widget.editingFinished.connect(  # type: ignore
-                    functools.partial(self._edit_finished_on_widget, widget, attr))  # type: ignore
+            # the editingFinished-signal is not seen by mypy coming from PySide6
+            widget.editingFinished.connect(  # type: ignore
+                functools.partial(self._edit_finished_on_widget, widget, attr))  # type: ignore
             self._layout.addWidget(widget, row, 1)
 
     def _edit_finished_on_widget(self, w: QtWidgets.QWidget, a: str) -> None:
