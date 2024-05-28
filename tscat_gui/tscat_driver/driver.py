@@ -1,7 +1,7 @@
 import atexit
 from typing import Dict, Union, Optional
 
-from PySide6.QtCore import QObject, QThread, Slot, Signal
+from PySide6.QtCore import QObject, QThread, Slot, Signal, Qt
 from tscat import _Catalogue, _Event
 
 from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEntityAction, RemoveEntitiesAction, \
@@ -34,8 +34,8 @@ class TscatDriver(QObject):
 
         self._worker = _TscatDriverWorker()
 
-        self._do_action.connect(self._worker.do_action)
-        self._worker.action_done.connect(self._worker_action_done)
+        self._do_action.connect(self._worker.do_action, Qt.QueuedConnection)
+        self._worker.action_done.connect(self._worker_action_done, Qt.QueuedConnection)
 
         self._entity_cache: Dict[str, Union[_Event, _Catalogue]] = {}
         self.destroyed.connect(self.stop)  # type: ignore

@@ -30,7 +30,7 @@ class TscatRootModel(QAbstractItemModel):
 
         self._catalogues: Dict[str, CatalogModel] = {}
 
-        tscat_driver.action_done_prioritised.connect(self._driver_action_done)
+        tscat_driver.action_done_prioritised.connect(self._driver_action_done, Qt.QueuedConnection)
 
         tscat_driver.do(GetCataloguesAction(None, False))
         tscat_driver.do(GetCataloguesAction(None, True))
