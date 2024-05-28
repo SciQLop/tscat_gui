@@ -143,3 +143,17 @@ class CatalogNode(NamedNode):
 
     def flags(self):
         return super().flags() | QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsDropEnabled  # type: ignore
+
+
+class FolderNode(NamedNode):
+    def __init__(self, name: str):
+        super().__init__()
+        self._name = name
+
+    @property
+    def uuid(self) -> str:
+        return '00000000-0000-0000-0000-000000000000'
+
+    @property
+    def name(self) -> str:
+        return self._name

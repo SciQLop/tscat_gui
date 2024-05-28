@@ -34,7 +34,10 @@ class _EntityBased(QtGui.QUndoCommand):
 
         if type == tscat._Event:
             self.state.updated('passive_select', tscat._Catalogue, self._select_state.selected_catalogues)
+            self.state.set_catalogue_path(self._select_state.catalogue_path)
         self.state.updated('active_select', type, uuids)
+        if type == tscat._Catalogue:
+            print("TODO update path in select_state")
 
     def redo(self) -> None:
         self._redo()
@@ -157,17 +160,20 @@ class NewCatalogue(_EntityBased):
 
     def _redo(self) -> None:
         def creation_callback(action: CreateEntityAction) -> None:
+            print("New Catalogue created", action.entity)
             assert action.entity is not None
             self.uuid = action.entity.uuid
             assert self.uuid is not None
             self._select([self.uuid], tscat._Catalogue)
 
+        print(self.state.current_catalogue_path())
         from .tscat_driver.model import tscat_model
         tscat_model.do(CreateEntityAction(creation_callback, tscat._Catalogue,
                                           {
                                               'name': "New Catalogue",
                                               'author': os.getlogin(),
-                                              'uuid': self.uuid
+                                              'uuid': self.uuid,
+                                              'Path': self.state.current_catalogue_path()
                                           }))
 
     def _undo(self) -> None:

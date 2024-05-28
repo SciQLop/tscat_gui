@@ -15,6 +15,7 @@ class SelectState:
     selected: List[str]
     type: Union[Type[tscat._Catalogue], Type[tscat._Event]]
     selected_catalogues: List[str]
+    catalogue_path: List[str]
 
 
 class AppState(QtCore.QObject):
@@ -24,7 +25,7 @@ class AppState(QtCore.QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self._select_state = SelectState([], tscat._Catalogue, [])
+        self._select_state = SelectState([], tscat._Catalogue, [], [])
 
         self._undo_stack = QtGui.QUndoStack()
         self._undo_stack.cleanChanged.connect(lambda x: self.undo_stack_clean_changed.emit(x))  # type: ignore
@@ -58,3 +59,10 @@ class AppState(QtCore.QObject):
 
         log.debug(f'app-state-updated action:{action}, type:{ty}, uuids:{uuids}')
         self.state_changed.emit(action, ty, uuids)
+
+    def set_catalogue_path(self, path: List[str]) -> None:
+        print("setting path", path)
+        self._select_state.catalogue_path = path
+
+    def current_catalogue_path(self) -> List[str]:
+        return self._select_state.catalogue_path
