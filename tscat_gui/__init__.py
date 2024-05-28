@@ -431,6 +431,7 @@ class TSCatGUI(QtWidgets.QWidget):
             self)
 
         action.triggered.connect(self.__refresh_current_selection)  # type: ignore
+        action.setEnabled(False)
         toolbar.addAction(action)
 
         self.refresh_action = action
