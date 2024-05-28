@@ -15,7 +15,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from tscat import _Catalogue, _Event
 from .edit import EntityEditView
-from .model_base.constants import UUIDDataRole
+from .model_base.constants import UUIDDataRole, EntityRole
 from .state import AppState
 from .tscat_driver.actions import Action, AddEventsToCatalogueAction, CanonicalizeImportAction, CreateEntityAction, \
     DeleteAttributeAction, MoveToTrashAction, SaveAction, SetAttributeAction
@@ -165,9 +165,17 @@ class TSCatGUI(QtWidgets.QWidget):
 
     def __catalogue_selection_changed(self, _: QtCore.QItemSelection, __: QtCore.QItemSelection) -> None:
         if not self.programmatic_select:
-            uuids = [index.data(UUIDDataRole) for index in self.catalogues_view.selectedIndexes()]
-            self.state.updated('active_select', _Catalogue, uuids)
-            self.catalogues_selected.emit(uuids)
+            catalogue_uuids = []
+            selected_indexes = self.catalogues_view.selectedIndexes()
+            for index in selected_indexes:
+                if index.data(EntityRole) is not None:
+                    catalogue_uuids.append(index.data(UUIDDataRole))
+
+            if selected_indexes:
+                self.state.set_catalogue_path(self.catalogue_model.current_path(selected_indexes[-1]))
+            if catalogue_uuids:
+                self.state.updated('active_select', _Catalogue, catalogue_uuids)
+                self.catalogues_selected.emit(catalogue_uuids)
 
     def __create_undo_redo_action_menu_on_toolbutton(self,
                                                      index_range: range,
