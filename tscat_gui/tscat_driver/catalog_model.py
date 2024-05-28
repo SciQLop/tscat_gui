@@ -4,7 +4,7 @@ from typing import Any, List, Optional, Sequence, Union
 from PySide6.QtCore import QAbstractTableModel, QMimeData, QModelIndex, QPersistentModelIndex, Qt
 from PySide6.QtGui import QColor
 
-from tscat import _Event
+from tscat import _Event, _Catalogue
 from .actions import Action, AddEventsToCatalogueAction, DeleteAttributeAction, DeletePermanentlyAction, \
     GetCatalogueAction, MoveToTrashAction, RemoveEntitiesAction, RemoveEventsFromCatalogueAction, \
     RestoreFromTrashAction, RestorePermanentlyDeletedAction, SetAttributeAction
@@ -45,6 +45,11 @@ class CatalogModel(QAbstractTableModel):
                                 index_left = self.index(row, 0, QModelIndex())
                                 index_right = self.index(row, self.columnCount() - 1, QModelIndex())
                                 self.dataChanged.emit(index_left, index_right)  # type: ignore
+
+            if action.name == 'predicate':
+                for c in filter(lambda x: isinstance(x, _Catalogue), action.entities):
+                    if c.uuid == self._root.uuid:
+                        self.refresh()
 
         elif isinstance(action, AddEventsToCatalogueAction):
             if action.catalogue_uuid == self._root.uuid:
@@ -119,6 +124,9 @@ class CatalogModel(QAbstractTableModel):
                 self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount() + len(nodes) - 1)
                 self._root.append_children(nodes)
                 self.endInsertRows()
+
+    def refresh(self):
+        tscat_driver.do(GetCatalogueAction(None, self._root.uuid))
 
     def headerData(self, section: int, orientation: Qt.Orientation,
                    role: int = Qt.DisplayRole) -> Any:  # type: ignore
