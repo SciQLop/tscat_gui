@@ -1,6 +1,6 @@
 from typing import Union, Sequence, List
 
-from PySide6.QtCore import QObject, QAbstractItemModel, Signal
+from PySide6.QtCore import QObject, QAbstractItemModel, Signal, Qt
 from tscat import _Event, _Catalogue
 
 from .actions import Action
@@ -16,7 +16,7 @@ class _Model(QObject):
         self._tscat_root = TscatRootModel()
 
         from .driver import tscat_driver
-        tscat_driver.action_done.connect(self._action_done)
+        tscat_driver.action_done.connect(self._action_done, Qt.QueuedConnection)
 
     def _action_done(self, action: Action) -> None:
         self.action_done.emit(action)
