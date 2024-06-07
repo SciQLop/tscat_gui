@@ -79,6 +79,8 @@ class TscatRootModel(QAbstractItemModel):
                     self.beginRemoveRows(QModelIndex(), row, row)
                     self._root.remove_child(c)
                     self.endRemoveRows()
+                    if c.uuid in self._catalogues:
+                        del self._catalogues[c.uuid]
 
             for row, c in reversed(list(enumerate(self._trash.children))):
                 if c.uuid in action.uuids:
