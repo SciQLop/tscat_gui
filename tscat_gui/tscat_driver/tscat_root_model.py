@@ -15,7 +15,7 @@ from .catalog_model import CatalogModel
 from .driver import tscat_driver
 from .nodes import Node, CatalogNode, TrashNode, RootNode, NamedNode
 from ..model_base.constants import UUIDDataRole, EntityRole
-from ..utils.export import export_to_json
+from ..utils.import_export import export_to_json
 
 
 class TscatRootModel(QAbstractItemModel):

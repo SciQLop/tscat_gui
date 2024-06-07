@@ -21,7 +21,7 @@ from .tscat_driver.actions import Action, AddEventsToCatalogueAction, Canonicali
     DeleteAttributeAction, MoveToTrashAction, SaveAction, SetAttributeAction
 from .undo import AddEventsToCatalogue, DeletePermanently, Import, MoveEntityToTrash, NewCatalogue, NewEvent, \
     RestoreEntityFromTrash
-from .utils.export import export_to_json
+from .utils.import_export import export_to_json, export_to_votable, import_json, import_votable
 
 
 class _TSCatConcatenateTablePM(QtCore.QConcatenateTablesProxyModel):
@@ -216,26 +216,15 @@ class TSCatGUI(QtWidgets.QWidget):
             self,
             "Select a catalogue file to be imported",
             str(Path.home()),
-            "JSON Document (*.json)")
+            "JSON Document (*.json);;VOTable (*.xml)")
 
         if filename != '':
-            event_loop = QtCore.QEventLoop()
-
-            result = None
-
-            def canonicalization_done(action: CanonicalizeImportAction) -> None:
-                nonlocal result
-                result = action.result
-
-                if result is None:
-                    self.state.push_undo_command(Import, filename, action.import_dict)
-
-                event_loop.quit()
-
-            from .tscat_driver.model import tscat_model
-            tscat_model.do(CanonicalizeImportAction(canonicalization_done, filename))
-
-            event_loop.exec()
+            if filetype == 'VOTable (*.xml)':
+                result = import_votable(filename, self.state)
+            elif filetype == 'JSON Document (*.json)':
+                result = import_json(filename, self.state)
+            else:
+                result = ValueError(f"Unknown filetype '{filetype}'")
 
             if result:
                 QtWidgets.QMessageBox.critical(self,
@@ -247,13 +236,18 @@ class TSCatGUI(QtWidgets.QWidget):
             self,
             "Specify the filename for exporting the selected catalogues",
             str(Path.home()),
-            "JSON Document (*.json)")
+            "JSON Document (*.json);;VOTable (*.xml)")
         if filename != '':
-            split_filename = os.path.splitext(filename)
-            if split_filename[1] != '.json':
-                filename = split_filename[0] + '.json'
+            if filetype == 'VOTable (*.xml)':
+                filename = os.path.splitext(filename)[0] + '.xml'
 
-            result = export_to_json(filename, self.state.select_state().selected_catalogues)
+                result = export_to_votable(filename, self.state.select_state().selected_catalogues)
+            elif filetype == 'JSON Document (*.json)':
+                filename = os.path.splitext(filename)[0] + '.json'
+                result = export_to_json(filename, self.state.select_state().selected_catalogues)
+            else:
+                result = ValueError(f"Unknown filetype '{filetype}'")
+
             if result:
                 QtWidgets.QMessageBox.critical(
                     self,

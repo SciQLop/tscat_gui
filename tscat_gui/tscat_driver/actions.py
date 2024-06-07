@@ -1,10 +1,14 @@
 from abc import ABC, abstractmethod
+import os
 from dataclasses import dataclass, field
 from typing import Any, Callable, List, Optional, Sequence, Type, Union
 
+from sqlalchemy_utils import table_name
 from tscat import EventQueryInformation, _Catalogue, _Event, add_events_to_catalogue, canonicalize_json_import, \
-    create_catalogue, create_event, export_json, get_catalogues, get_events, import_canonicalized_dict, \
-    remove_events_from_catalogue, save
+    create_catalogue, create_event, export_json, export_votable, canonicalize_votable_import, get_catalogues, \
+    get_events, \
+    import_canonicalized_dict, remove_events_from_catalogue, save
+
 from tscat.filtering import UUID
 
 
@@ -183,17 +187,29 @@ class RestoreFromTrashAction(Action):
 @dataclass
 class CanonicalizeImportAction(Action):
     filename: str
+    importer: Callable[[str], object] = lambda x: {}
 
     import_dict: Any = None
     result: Optional[Exception] = None
 
     def action(self) -> None:
         try:
-            with open(self.filename) as f:
-                data = f.read()
-                self.import_dict = canonicalize_json_import(data)
+            self.import_dict = self.importer(self.filename)
         except Exception as e:
             self.result = e
+
+
+def CanonicalizeJSONImportAction(*args, **kwargs) -> CanonicalizeImportAction:
+    return CanonicalizeImportAction(*args, **kwargs,
+                                    importer=lambda filename: canonicalize_json_import(open(filename).read()))
+
+
+def CanonicalizeVOTableImportAction(*args, **kwargs) -> CanonicalizeImportAction:
+    from astropy.io.votable import parse
+    return CanonicalizeImportAction(*args, **kwargs,
+                                    importer=lambda fname: canonicalize_votable_import(
+                                        parse(fname),
+                                        table_name=os.path.basename(fname).split('.')[0]))
 
 
 @dataclass
@@ -207,20 +223,45 @@ class ImportCanonicalizedDictAction(Action):
 
 
 @dataclass
-class ExportJSONAction(Action):
+class ExportAction(Action):
     filename: str
     catalogue_uuids: List[str]
+    exporter: Callable[[str, List[_Catalogue]], Optional[Exception]]
 
     result: Optional[Exception] = None
 
     def action(self) -> None:
         try:
-            with open(self.filename, 'w+') as f:
-                catalogues = list(map(self._entity, self.catalogue_uuids))
-                json = export_json(catalogues)  # type: ignore
-                f.write(json)
+            catalogues: List[_Catalogue] = list(map(self._entity, self.catalogue_uuids))  # type: ignore
+            self.result = self.exporter(self.filename, catalogues)
         except Exception as e:
             self.result = e
+
+
+def _export_to_json(filename: str, catalogues: List[_Catalogue]) -> Optional[Exception]:
+    try:
+        with open(filename, 'w+') as f:
+            f.write(export_json(catalogues))
+            return None
+    except Exception as e:
+        return e
+
+
+def ExportJSONAction(*args, **kwargs):
+    return ExportAction(*args, **kwargs, exporter=_export_to_json)
+
+
+def _export_to_votable(filename: str, catalogues: List[_Catalogue]) -> Optional[Exception]:
+    try:
+        with open(filename, 'w+') as f:
+            export_votable(catalogues).to_xml(f)
+            return None
+    except Exception as e:
+        return e
+
+
+def ExportVotableAction(*args, **kwargs):
+    return ExportAction(*args, **kwargs, exporter=_export_to_votable)
 
 
 @dataclass
