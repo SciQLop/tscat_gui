@@ -7,6 +7,7 @@ import tscat.filtering
 from PySide6 import QtCore, QtWidgets
 
 from .metadata import catalogue_meta_data
+from .model_base.constants import PathAttributeName
 from .predicate import SimplePredicateEditDialog
 from .state import AppState
 from .tscat_driver.actions import Action, GetCatalogueAction, SetAttributeAction
@@ -322,6 +323,9 @@ class CustomAttributesGroupBox(AttributesGroupBox):
                                    list(entity.fixed_attributes().keys())
 
         attributes = sorted(entity.variable_attributes().keys())
+        if PathAttributeName in attributes:  # hide PathAttributeName from Editor
+            attributes.remove(PathAttributeName)
+
         values = {}
         for attr in attributes:
             values[attr] = entity.__dict__[attr]

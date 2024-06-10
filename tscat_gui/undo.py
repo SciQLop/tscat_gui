@@ -7,6 +7,7 @@ from typing import Union, Optional, Type, List
 import tscat
 from PySide6 import QtGui
 
+from .model_base.constants import PathAttributeName
 from .state import AppState
 from .tscat_driver.actions import CreateEntityAction, RemoveEntitiesAction, SetAttributeAction, DeleteAttributeAction, \
     AddEventsToCatalogueAction, RemoveEventsFromCatalogueAction, MoveToTrashAction, RestoreFromTrashAction, \
@@ -173,7 +174,7 @@ class NewCatalogue(_EntityBased):
                                               'name': "New Catalogue",
                                               'author': os.getlogin(),
                                               'uuid': self.uuid,
-                                              'Path': self.state.current_catalogue_path()
+                                              PathAttributeName: self.state.current_catalogue_path()
                                           }))
 
     def _undo(self) -> None:

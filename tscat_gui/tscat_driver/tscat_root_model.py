@@ -13,7 +13,7 @@ from .actions import Action, CreateEntityAction, DeleteAttributeAction, DeletePe
 from .catalog_model import CatalogModel
 from .driver import tscat_driver
 from .nodes import CatalogNode, FolderNode, NamedNode, Node, RootNode, TrashNode
-from ..model_base.constants import EntityRole, UUIDDataRole
+from ..model_base.constants import EntityRole, PathAttributeName, UUIDDataRole
 from ..utils.import_export import export_to_json
 
 
@@ -39,8 +39,9 @@ class TscatRootModel(QAbstractItemModel):
 
     def _node_from_catalogue_path(self, c: _Catalogue, create_index_for_new_folders: bool = False) -> Node:
         parent = self._root
-        if hasattr(c, 'Path') and isinstance(c.Path, list) and all(isinstance(x, str) for x in c.Path):
-            for folder in c.Path:
+        if hasattr(c, PathAttributeName) and isinstance(getattr(c, PathAttributeName), list) and \
+            all(isinstance(x, str) for x in getattr(c, PathAttributeName)):
+            for folder in getattr(c, PathAttributeName):
                 for child in parent.children:
                     if isinstance(child, FolderNode) and child.name == folder:
                         parent = child
@@ -172,7 +173,7 @@ class TscatRootModel(QAbstractItemModel):
                 if node is not None:
                     node.node = c
 
-                    if action.name == 'Path':
+                    if action.name == PathAttributeName:
                         node = self._get_node_from_uuid_and_remove_from_tree(c.uuid)
                         self._insert_catalogue_node_at_node_path_or_trash(node)
 
