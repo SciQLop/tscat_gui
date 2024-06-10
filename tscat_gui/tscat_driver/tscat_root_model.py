@@ -2,7 +2,7 @@ import datetime as dt
 import os
 import pickle
 import tempfile
-from typing import Any, Dict, List, Sequence, Union, cast
+from typing import Any, Dict, List, Optional, Sequence, Union, cast
 
 from PySide6.QtCore import QAbstractItemModel, QMimeData, QModelIndex, QPersistentModelIndex, QUrl, Qt, Signal
 
@@ -52,7 +52,7 @@ class TscatRootModel(QAbstractItemModel):
 
         return root
 
-    def _node_from_uuid(self, uuid: str) -> CatalogNode:
+    def _catalogue_node_from_uuid(self, uuid: str) -> Optional[CatalogNode]:
         stack = [self._root]
 
         while stack:
@@ -64,7 +64,7 @@ class TscatRootModel(QAbstractItemModel):
             if not isinstance(node, CatalogNode):
                 stack.extend(node.children)
 
-        raise ValueError(f'Node with uuid {uuid} not found')
+        return None
 
     def _index_from_node(self, node: Node) -> QModelIndex:
         if node.parent is None:
@@ -72,8 +72,34 @@ class TscatRootModel(QAbstractItemModel):
 
         return self.index(node.row, 0, self._index_from_node(node.parent))
 
+    def _get_node_from_uuid_and_remove_from_tree(self, uuid: str) -> Optional[CatalogNode]:
+        node = self._catalogue_node_from_uuid(uuid)
+        if node is None:
+            return None
+
+        index = self._index_from_node(node)
+
+        self.beginRemoveRows(index.parent(), index.row(), index.row())
+        node.parent.remove_child(node)
+        self.endRemoveRows()
+
+        return node
+
+    def _insert_catalogue_node_at_node_path_or_trash(self, node: CatalogNode) -> None:
+        if node.node.is_removed():  # undelete to Trash
+            parent_node = self._trash
+        else:
+            parent_node = self._node_from_catalogue_path(node.node)
+        parent_index = self._index_from_node(parent_node)
+
+        self.beginInsertRows(parent_index, len(parent_node.children), len(parent_node.children))
+        parent_node.append_child(node)
+        self.endInsertRows()
+
     def index_from_uuid(self, uuid: str) -> QModelIndex:
-        node = self._node_from_uuid(uuid)
+        node = self._catalogue_node_from_uuid(uuid)
+        if node is None:
+            return QModelIndex()
         return self._index_from_node(node)
 
     def _driver_action_done(self, action: Action) -> None:
@@ -96,10 +122,10 @@ class TscatRootModel(QAbstractItemModel):
                 self.endResetModel()
 
         elif isinstance(action, GetCatalogueAction):
-            # also search in Trash
-            node = self._node_from_uuid(action.uuid)
-            index = self._index_from_node(node)
-            self.dataChanged.emit(index, index)  # type: ignore
+            # also search in Trash :D
+            index = self.index_from_uuid(action.uuid)
+            if index.isValid():
+                self.dataChanged.emit(index, index)  # type: ignore
 
         elif isinstance(action, CreateEntityAction):
             if isinstance(action.entity, _Catalogue):
@@ -108,12 +134,9 @@ class TscatRootModel(QAbstractItemModel):
 
         elif isinstance(action, (RemoveEntitiesAction, DeletePermanentlyAction)):
             for uuid in action.uuids:
-                node = self._node_from_uuid(uuid)
-                index = self._index_from_node(node)
-
-                self.beginRemoveRows(index.parent(), index.row(), index.row())
-                node.parent.remove_child(node)
-                self.endRemoveRows()
+                node = self._get_node_from_uuid_and_remove_from_tree(uuid)
+                if node is None:
+                    continue
 
                 # in case a catalogueModel was created for this catalogue, remove it
                 if uuid in self._catalogues:
@@ -122,12 +145,9 @@ class TscatRootModel(QAbstractItemModel):
 
         elif isinstance(action, (MoveToTrashAction, RestoreFromTrashAction)):  # Move to Trash exists only for Catalogs
             for uuid, entity in zip(action.uuids, action.entities):
-                node = self._node_from_uuid(uuid)
-                index = self._index_from_node(node)
-
-                self.beginRemoveRows(index.parent(), index.row(), index.row())
-                node.parent.remove_child(node)
-                self.endRemoveRows()
+                node = self._get_node_from_uuid_and_remove_from_tree(uuid)
+                if node is None:
+                    continue
 
                 node.node = entity  # update the node's entity to the new one with the removed flag set
 
@@ -141,26 +161,16 @@ class TscatRootModel(QAbstractItemModel):
 
         elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
             for c in filter(lambda x: isinstance(x, _Catalogue), action.entities):
-                node = self._node_from_uuid(c.uuid)
-                node.node = c
+                node = self._catalogue_node_from_uuid(c.uuid)
+                if node is not None:
+                    node.node = c
 
-                index = self._index_from_node(node)
-                self.dataChanged.emit(index, index)  # type: ignore
+                    index = self._index_from_node(node)
+                    self.dataChanged.emit(index, index)  # type: ignore
 
         elif isinstance(action, ImportCanonicalizedDictAction):
             for node in list(map(CatalogNode, action.catalogues)):
                 self._insert_catalogue_node_at_node_path_or_trash(node)
-
-    def _insert_catalogue_node_at_node_path_or_trash(self, node: CatalogNode) -> None:
-        if node.node.is_removed():  # undelete to Trash
-            parent_node = self._trash
-        else:
-            parent_node = self._node_from_catalogue_path(node.node)
-        parent_index = self._index_from_node(parent_node)
-
-        self.beginInsertRows(parent_index, len(parent_node.children), len(parent_node.children))
-        parent_node.append_child(node)
-        self.endInsertRows()
 
     def catalog(self, uuid: str) -> CatalogModel:
         if uuid not in self._catalogues:
