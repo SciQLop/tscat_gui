@@ -2,16 +2,17 @@ import abc
 import datetime as dt
 import os
 from copy import deepcopy
-from typing import Union, Optional, Type, List
+from typing import Dict, List, Optional, Tuple, Type, Union
 
-import tscat
 from PySide6 import QtGui
 
+import tscat
 from .model_base.constants import PathAttributeName
 from .state import AppState
-from .tscat_driver.actions import CreateEntityAction, RemoveEntitiesAction, SetAttributeAction, DeleteAttributeAction, \
-    AddEventsToCatalogueAction, RemoveEventsFromCatalogueAction, MoveToTrashAction, RestoreFromTrashAction, \
-    ImportCanonicalizedDictAction, DeletePermanentlyAction, RestorePermanentlyDeletedAction, _DeletedEntity
+from .tscat_driver.actions import AddEventsToCatalogueAction, CreateEntityAction, DeleteAttributeAction, \
+    DeletePermanentlyAction, ImportCanonicalizedDictAction, MoveToTrashAction, RemoveEntitiesAction, \
+    RemoveEventsFromCatalogueAction, RestoreFromTrashAction, RestorePermanentlyDeletedAction, SetAttributeAction, \
+    _DeletedEntity
 
 
 class _EntityBased(QtGui.QUndoCommand):
@@ -35,10 +36,8 @@ class _EntityBased(QtGui.QUndoCommand):
 
         if type == tscat._Event:
             self.state.updated('passive_select', tscat._Catalogue, self._select_state.selected_catalogues)
-            self.state.set_catalogue_path(self._select_state.catalogue_path)
         self.state.updated('active_select', type, uuids)
-        if type == tscat._Catalogue:
-            print("TODO update path in select_state")
+        self.state.set_catalogue_path(self._select_state.catalogue_path)
 
     def redo(self) -> None:
         self._redo()
@@ -340,3 +339,37 @@ class AddEventsToCatalogue(_EntityBased):
         tscat_model.do(RemoveEventsFromCatalogueAction(None, self.event_uuids, self.catalogue_uuid))
 
         self._select([self.catalogue_uuid], type=tscat._Catalogue)
+
+
+class CreateOrSetCataloguePath(_EntityBased):
+    def __init__(self, state: AppState,
+                 catalogues_paths: Dict[str, Tuple[List[str]]], parent=None):
+        super().__init__(state, parent)
+
+        print(catalogues_paths)
+
+        self._select_state.selected_catalogues = list(catalogues_paths.keys())
+        self.setText(f'Move catalogues to new paths')
+        self.paths = catalogues_paths
+
+    def _redo(self) -> None:
+        def action_callback(_: SetAttributeAction) -> None:
+            self._select(self._selected_entities())
+
+        from .tscat_driver.model import tscat_model
+        uuids, paths = [], []
+        for u, p in self.paths.items():
+            uuids.append(u)
+            paths.append(p[1])
+        tscat_model.do(SetAttributeAction(action_callback, uuids, PathAttributeName, paths))
+
+    def _undo(self) -> None:
+        def action_callback(_: SetAttributeAction) -> None:
+            self._select(self._selected_entities())
+
+        from .tscat_driver.model import tscat_model
+        uuids, paths = [], []
+        for u, p in self.paths.items():
+            uuids.append(u)
+            paths.append(p[0])
+        tscat_model.do(SetAttributeAction(action_callback, uuids, PathAttributeName, paths))

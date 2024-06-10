@@ -15,12 +15,12 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from tscat import _Catalogue, _Event
 from .edit import EntityEditView
-from .model_base.constants import UUIDDataRole, EntityRole
+from .model_base.constants import EntityRole, UUIDDataRole
 from .state import AppState
 from .tscat_driver.actions import Action, AddEventsToCatalogueAction, CanonicalizeImportAction, CreateEntityAction, \
     DeleteAttributeAction, MoveToTrashAction, SaveAction, SetAttributeAction
 from .undo import AddEventsToCatalogue, DeletePermanently, Import, MoveEntityToTrash, NewCatalogue, NewEvent, \
-    RestoreEntityFromTrash
+    RestoreEntityFromTrash, SetAttributeValue, CreateOrSetCataloguePath
 from .utils.import_export import export_to_json, export_to_votable, import_json, import_votable
 
 
@@ -321,11 +321,13 @@ class TSCatGUI(QtWidgets.QWidget):
                                                                  self.state.push_undo_command(AddEventsToCatalogue,
                                                                                               uuid,
                                                                                               event_list))
+        self.catalogue_model.catalogues_dropped_on_folder.connect(
+            lambda catalogues_paths: self.state.push_undo_command(CreateOrSetCataloguePath, catalogues_paths))
 
         self.catalogues_view = QtWidgets.QTreeView()
         self.catalogues_view.setMinimumSize(300, 900)
-        self.catalogues_view.setDragEnabled(False)
-        self.catalogues_view.setDragDropMode(QtWidgets.QTreeView.DragDropMode.DropOnly)
+        self.catalogues_view.setDragEnabled(True)
+        self.catalogues_view.setDragDropMode(QtWidgets.QTreeView.DragDropMode.DragDrop)
         self.catalogues_view.setAcceptDrops(True)
         self.catalogues_view.setDropIndicatorShown(True)
         self.catalogues_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)  # type: ignore
