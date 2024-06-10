@@ -3,7 +3,6 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Callable, List, Optional, Sequence, Type, Union
 
-from sqlalchemy_utils import table_name
 from tscat import EventQueryInformation, _Catalogue, _Event, add_events_to_catalogue, canonicalize_json_import, \
     create_catalogue, create_event, export_json, export_votable, canonicalize_votable_import, get_catalogues, \
     get_events, \
@@ -313,7 +312,11 @@ class RestorePermanentlyDeletedAction(Action):
             if e.in_trash:
                 entity.remove()
 
-            linked_entities = list(map(self._entity, e.linked_uuids))
+            if e.type == _Catalogue:
+                linked_entities = list(map(self._event, e.linked_uuids))
+            else:
+                linked_entities = list(map(self._entity, e.linked_uuids))
+
             if isinstance(entity, _Catalogue):
                 assert all(lambda x=x: isinstance(x, _Event) for x in linked_entities)
                 add_events_to_catalogue(entity, linked_entities)  # type: ignore
