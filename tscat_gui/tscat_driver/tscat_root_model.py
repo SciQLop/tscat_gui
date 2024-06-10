@@ -37,20 +37,27 @@ class TscatRootModel(QAbstractItemModel):
     def _trash_index(self) -> QModelIndex:
         return self.index(0, 0, QModelIndex())
 
-    def _node_from_catalogue_path(self, c: _Catalogue) -> Node:
-        root = self._root
+    def _node_from_catalogue_path(self, c: _Catalogue, create_index_for_new_folders: bool = False) -> Node:
+        parent = self._root
         if hasattr(c, 'Path') and isinstance(c.Path, list) and all(isinstance(x, str) for x in c.Path):
             for folder in c.Path:
-                for child in root.children:
+                for child in parent.children:
                     if isinstance(child, FolderNode) and child.name == folder:
-                        root = child
+                        parent = child
                         break
                 else:
-                    new_folder = FolderNode(folder)
-                    root.append_child(new_folder)
-                    root = new_folder
+                    if create_index_for_new_folders:
+                        parent_index = self._index_from_node(parent)
+                        self.beginInsertRows(parent_index, len(parent.children), len(parent.children))
 
-        return root
+                    new_folder = FolderNode(folder)
+                    parent.append_child(new_folder)
+                    parent = new_folder
+
+                    if create_index_for_new_folders:
+                        self.endInsertRows()
+
+        return parent
 
     def _catalogue_node_from_uuid(self, uuid: str) -> Optional[CatalogNode]:
         stack = [self._root]
@@ -89,7 +96,7 @@ class TscatRootModel(QAbstractItemModel):
         if node.node.is_removed():  # undelete to Trash
             parent_node = self._trash
         else:
-            parent_node = self._node_from_catalogue_path(node.node)
+            parent_node = self._node_from_catalogue_path(node.node, create_index_for_new_folders=True)
         parent_index = self._index_from_node(parent_node)
 
         self.beginInsertRows(parent_index, len(parent_node.children), len(parent_node.children))
@@ -164,6 +171,10 @@ class TscatRootModel(QAbstractItemModel):
                 node = self._catalogue_node_from_uuid(c.uuid)
                 if node is not None:
                     node.node = c
+
+                    if action.name == 'Path':
+                        node = self._get_node_from_uuid_and_remove_from_tree(c.uuid)
+                        self._insert_catalogue_node_at_node_path_or_trash(node)
 
                     index = self._index_from_node(node)
                     self.dataChanged.emit(index, index)  # type: ignore
