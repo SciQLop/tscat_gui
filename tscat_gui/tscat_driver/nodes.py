@@ -1,6 +1,7 @@
 import abc
+import base64
 from abc import ABC
-from typing import Optional, Sequence, List
+from typing import Optional, Sequence, List, Tuple
 
 from PySide6 import QtCore
 from tscat import _Event, _Catalogue
@@ -146,14 +147,29 @@ class CatalogNode(NamedNode):
 
 
 class FolderNode(NamedNode):
+    LocalUniqueId: int = 0
+
     def __init__(self, name: str):
         super().__init__()
         self._name = name
+        self._uuid = f'path-uuid-{FolderNode.LocalUniqueId}'
+        FolderNode.LocalUniqueId += 1
+
+    def full_path(self) -> List[str]:
+        path = []
+        node = self
+        while isinstance(node, FolderNode):
+            path.insert(0, node.name)
+            node = node.parent
+        return path
 
     @property
     def uuid(self) -> str:
-        return '00000000-0000-0000-0000-000000000000'
+        return self._uuid
 
     @property
     def name(self) -> str:
         return self._name
+
+    def flags(self):
+        return super().flags() | QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsDropEnabled  # type: ignore

@@ -8,8 +8,8 @@ from PySide6.QtCore import QAbstractItemModel, QMimeData, QModelIndex, QPersiste
 
 from tscat import _Catalogue
 from .actions import Action, CreateEntityAction, DeleteAttributeAction, DeletePermanentlyAction, GetCatalogueAction, \
-    GetCataloguesAction, ImportCanonicalizedDictAction, MoveToTrashAction, RemoveEntitiesAction, RestoreFromTrashAction, \
-    RestorePermanentlyDeletedAction, SetAttributeAction
+    GetCataloguesAction, ImportCanonicalizedDictAction, MoveToTrashAction, RemoveEntitiesAction, \
+    RestoreFromTrashAction, RestorePermanentlyDeletedAction, SetAttributeAction
 from .catalog_model import CatalogModel
 from .driver import tscat_driver
 from .nodes import CatalogNode, FolderNode, NamedNode, Node, RootNode, TrashNode
@@ -19,6 +19,7 @@ from ..utils.import_export import export_to_json
 
 class TscatRootModel(QAbstractItemModel):
     events_dropped_on_catalogue = Signal(str, list)
+    catalogues_dropped_on_folder = Signal(dict)
 
     def __init__(self) -> None:
         super().__init__()
@@ -66,12 +67,12 @@ class TscatRootModel(QAbstractItemModel):
 
         return parent
 
-    def _catalogue_node_from_uuid(self, uuid: str) -> Optional[CatalogNode]:
+    def _node_from_uuid(self, uuid: str) -> Optional[CatalogNode]:
         stack = [self._root]
 
         while stack:
             node = stack.pop()
-            if isinstance(node, CatalogNode) and node.uuid == uuid:
+            if isinstance(node, (CatalogNode, FolderNode)) and node.uuid == uuid:
                 return node
 
             # we do not want to search in Catalogue's children, they are events
@@ -87,7 +88,7 @@ class TscatRootModel(QAbstractItemModel):
         return self.index(node.row, 0, self._index_from_node(node.parent))
 
     def _get_node_from_uuid_and_remove_from_tree(self, uuid: str) -> Optional[CatalogNode]:
-        node = self._catalogue_node_from_uuid(uuid)
+        node = self._node_from_uuid(uuid)
         if node is None:
             return None
 
@@ -111,7 +112,7 @@ class TscatRootModel(QAbstractItemModel):
         self.endInsertRows()
 
     def index_from_uuid(self, uuid: str) -> QModelIndex:
-        node = self._catalogue_node_from_uuid(uuid)
+        node = self._node_from_uuid(uuid)
         if node is None:
             return QModelIndex()
         return self._index_from_node(node)
@@ -175,7 +176,7 @@ class TscatRootModel(QAbstractItemModel):
 
         elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
             for c in filter(lambda x: isinstance(x, _Catalogue), action.entities):
-                node = self._catalogue_node_from_uuid(c.uuid)
+                node = self._node_from_uuid(c.uuid)
                 if node is not None:
                     node.node = c
 
@@ -271,7 +272,7 @@ class TscatRootModel(QAbstractItemModel):
             if role == Qt.ItemDataRole.DisplayRole:
                 return item.name
             elif role == UUIDDataRole:
-                if isinstance(item, CatalogNode):
+                if isinstance(item, (CatalogNode, FolderNode)):
                     return item.uuid
             elif role == EntityRole:
                 if isinstance(item, CatalogNode):
@@ -295,9 +296,15 @@ class TscatRootModel(QAbstractItemModel):
     def canDropMimeData(self, data: QMimeData, action: Qt.DropAction,
                         row: int, column: int,
                         parent: Union[QModelIndex, QPersistentModelIndex]) -> bool:
-        if not data.hasFormat('application/x-tscat-event-uuid-list'):
-            return False
-        return True
+        # on Catalogues, we can drop events
+        if isinstance(parent.data(EntityRole), _Catalogue):
+            if data.hasFormat('application/x-tscat-event-uuid-list'):
+                return True
+        # on everything else except Trash we can drop catalogues - because it is a FolderNode or Trash
+        else:
+            if parent != self._trash_index() and data.hasFormat('application/x-tscat-catalogue-uuid-list'):
+                return True
+        return False
 
     def dropMimeData(self, data: QMimeData, action: Qt.DropAction,
                      row: int, column: int,
@@ -308,9 +315,38 @@ class TscatRootModel(QAbstractItemModel):
         if action == Qt.DropAction.IgnoreAction:
             return True
 
-        self.events_dropped_on_catalogue.emit(parent.data(UUIDDataRole),
-                                              pickle.loads(
-                                                  data.data('application/x-tscat-event-uuid-list')))  # type: ignore
+        if data.hasFormat('application/x-tscat-event-uuid-list'):
+            self.events_dropped_on_catalogue.emit(parent.data(UUIDDataRole),
+                                                  pickle.loads(
+                                                      data.data('application/x-tscat-event-uuid-list')))  # type: ignore
+        elif data.hasFormat('application/x-tscat-catalogue-uuid-list'):  # per canDropMimeData, parent is a FolderNode
+            uuids = pickle.loads(data.data('application/x-tscat-catalogue-uuid-list'))
+            parent_path = self.current_path(parent)
+
+            # dict keeping the old and new paths of the catalogues in a tuple, keyed by uuid
+            catalogues_paths = {}
+            for uuid in uuids:
+                index = self.index_from_uuid(uuid)
+
+                assert index.isValid()
+
+                node = index.internalPointer()
+                if isinstance(node, CatalogNode):  # for catalogues the new path is the parent's path
+                    catalogues_paths[uuid] = (self.current_path(self._index_from_node(node)), parent_path)
+                elif isinstance(node, FolderNode):
+                    # for folders the new path for all catalogues below, is the
+                    # parent's path + relative path starting at the dragged folder
+                    catalogues = self._catalogue_nodes(node)
+                    if not catalogues:  # folder with no catalogues in it
+                        pass
+                    else:
+                        for c in catalogues:
+                            folder_path = node.full_path()
+                            catalogue_path = self.current_path(self._index_from_node(c))
+                            catalogues_paths[c.uuid] = (catalogue_path,
+                                                        parent_path + catalogue_path[len(folder_path) - 1:])
+            # print(json.dumps(catalogues_new_path, indent=4))
+            self.catalogues_dropped_on_folder.emit(catalogues_paths)
 
         return True
 
@@ -323,6 +359,9 @@ class TscatRootModel(QAbstractItemModel):
         urls: List[QUrl] = []
         for index in indexes:
             now = dt.datetime.now().isoformat()
+            if index.data(EntityRole) is None:  # for catalogues only, ignore folders
+                continue
+
             catalogue = self.data(index, EntityRole)
 
             path = os.path.join(tempfile.gettempdir(), 'tscat_gui', f'{catalogue.name}-{now}-export.json')
@@ -334,18 +373,15 @@ class TscatRootModel(QAbstractItemModel):
             if result is None:
                 path_url = QUrl.fromLocalFile(path)
                 urls.append(path_url)
-
         mime_data.setUrls(urls)
 
-        print('dragging')
-
+        mime_data.setData('application/x-tscat-catalogue-uuid-list', pickle.dumps([self.data(index, UUIDDataRole)
+                                                                                   for index in indexes]))
         return mime_data
 
-    def catalogue_nodes(self, in_trash: bool) -> Sequence[CatalogNode]:
-        if in_trash:
-            stack = list(self._trash.children[:])
-        else:
-            stack = list(self._root.children[:])
+    @staticmethod
+    def _catalogue_nodes(parent_node: Node) -> List[CatalogNode]:
+        stack = list(parent_node.children[:])
 
         catalogues: List[CatalogNode] = []
 
@@ -358,3 +394,9 @@ class TscatRootModel(QAbstractItemModel):
                 stack.extend(node.children)
 
         return catalogues
+
+    def catalogue_nodes(self, in_trash: bool) -> Sequence[CatalogNode]:
+        if in_trash:
+            return self._catalogue_nodes(self._trash)
+        else:
+            return self._catalogue_nodes(self._root)
