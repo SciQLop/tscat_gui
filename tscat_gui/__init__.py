@@ -168,7 +168,7 @@ class TSCatGUI(QtWidgets.QWidget):
             catalogue_uuids = []
             selected_indexes = self.catalogues_view.selectedIndexes()
             for index in selected_indexes:
-                if index.data(EntityRole) is not None:
+                if index.data(EntityRole) is not None:  # if not a folder
                     catalogue_uuids.append(index.data(UUIDDataRole))
 
             if selected_indexes:
@@ -266,6 +266,23 @@ class TSCatGUI(QtWidgets.QWidget):
                                                   "Catalogue export",
                                                   "The selected catalogues have been successfully exported")
 
+    def __new_folder(self) -> None:
+        # use QInputDialog to get the new folder name
+        folder_name, ok = QtWidgets.QInputDialog.getText(self, 'Create Folder', 'Folder name:')
+        print(folder_name, ok)
+
+        if ok:
+            new_path = self.state.current_catalogue_path() + [folder_name]
+            node = self.catalogue_model.node_from_path(new_path, True)
+            index = self.catalogue_model._index_from_node(node)
+            index = self.catalogue_sort_filter_model.mapFromSource(index)
+
+            self.catalogues_view.selectionModel().clear()
+            self.catalogues_view.selectionModel().select(index,
+                                                         QtCore.QItemSelectionModel.SelectionFlag.Select)
+            # expand the new folder
+            self.catalogues_view.expand(index)
+
     def __setup_ui(self) -> None:
 
         # Event Model and View
@@ -358,6 +375,14 @@ class TSCatGUI(QtWidgets.QWidget):
 
         # Toolbar
         toolbar = QtWidgets.QToolBar()
+
+
+        action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DirIcon),  # type: ignore
+                               "Create Folder", self)
+        action.triggered.connect(self.__new_folder)  # type: ignore
+        toolbar.addAction(action)
+
+        self.new_folder_action = action
 
         action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder),  # type: ignore
                                "Create Catalogue", self)
