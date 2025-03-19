@@ -37,26 +37,32 @@ class TscatRootModel(QAbstractItemModel):
     def _trash_index(self) -> QModelIndex:
         return self.index(0, 0, QModelIndex())
 
+    def node_from_path(self, path: List[str], create_index_for_new_folders: bool) -> Node:
+        parent = self._root
+        for folder in path:
+            for child in parent.children:
+                if isinstance(child, FolderNode) and child.name == folder:
+                    parent = child
+                    break
+            else:
+                if create_index_for_new_folders:
+                    parent_index = self._index_from_node(parent)
+                    self.beginInsertRows(parent_index, len(parent.children), len(parent.children))
+
+                new_folder = FolderNode(folder)
+                parent.append_child(new_folder)
+                parent = new_folder
+
+                if create_index_for_new_folders:
+                    self.endInsertRows()
+
+        return parent
+
     def _node_from_catalogue_path(self, c: _Catalogue, create_index_for_new_folders: bool = False) -> Node:
         parent = self._root
         if hasattr(c, PathAttributeName) and isinstance(getattr(c, PathAttributeName), list) and \
             all(isinstance(x, str) for x in getattr(c, PathAttributeName)):
-            for folder in getattr(c, PathAttributeName):
-                for child in parent.children:
-                    if isinstance(child, FolderNode) and child.name == folder:
-                        parent = child
-                        break
-                else:
-                    if create_index_for_new_folders:
-                        parent_index = self._index_from_node(parent)
-                        self.beginInsertRows(parent_index, len(parent.children), len(parent.children))
-
-                    new_folder = FolderNode(folder)
-                    parent.append_child(new_folder)
-                    parent = new_folder
-
-                    if create_index_for_new_folders:
-                        self.endInsertRows()
+            parent = self.node_from_path(getattr(c, PathAttributeName), create_index_for_new_folders)
 
         return parent
 

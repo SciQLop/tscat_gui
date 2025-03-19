@@ -167,7 +167,6 @@ class NewCatalogue(_EntityBased):
             assert self.uuid is not None
             self._select([self.uuid], tscat._Catalogue)
 
-        print(self.state.current_catalogue_path())
         from .tscat_driver.model import tscat_model
         tscat_model.do(CreateEntityAction(creation_callback, tscat._Catalogue,
                                           {
