@@ -1,10 +1,10 @@
 import abc
-import base64
 from abc import ABC
-from typing import Optional, Sequence, List, Tuple
+from typing import List, Optional, Sequence
 
 from PySide6 import QtCore
-from tscat import _Event, _Catalogue
+
+from tscat import _Catalogue, _Event
 
 
 class Node(ABC):

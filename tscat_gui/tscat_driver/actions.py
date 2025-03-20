@@ -1,13 +1,11 @@
-from abc import ABC, abstractmethod
 import os
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Callable, List, Optional, Sequence, Type, Union
 
 from tscat import EventQueryInformation, _Catalogue, _Event, add_events_to_catalogue, canonicalize_json_import, \
-    create_catalogue, create_event, export_json, export_votable, canonicalize_votable_import, get_catalogues, \
-    get_events, \
-    import_canonicalized_dict, remove_events_from_catalogue, save
-
+    canonicalize_votable_import, create_catalogue, create_event, export_json, export_votable, get_catalogues, \
+    get_events, import_canonicalized_dict, remove_events_from_catalogue, save
 from tscat.filtering import UUID
 
 
