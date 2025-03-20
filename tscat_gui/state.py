@@ -1,12 +1,10 @@
-from PySide6 import QtGui
-from PySide6 import QtCore
-
 import copy
 import dataclasses
-from typing import Union, Type, Optional, List
+from typing import List, Type, Union
+
+from PySide6 import QtCore, QtGui
 
 import tscat
-
 from .logger import log
 
 

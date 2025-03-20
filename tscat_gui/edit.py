@@ -1,20 +1,20 @@
 import datetime as dt
 import functools
-from typing import Union, Dict, Optional, List, Type, cast, Any, Callable
+from typing import Any, Callable, Dict, List, Optional, Type, Union, cast
+
+from PySide6 import QtCore, QtWidgets
 
 import tscat
 import tscat.filtering
-from PySide6 import QtCore, QtWidgets
-
 from .metadata import catalogue_meta_data
 from .model_base.constants import PathAttributeName
 from .predicate import SimplePredicateEditDialog
 from .state import AppState
 from .tscat_driver.actions import Action, GetCatalogueAction, SetAttributeAction
-from .undo import NewAttribute, RenameAttribute, DeleteAttributeAction, SetAttributeValue, DeleteAttribute
+from .undo import DeleteAttribute, DeleteAttributeAction, NewAttribute, RenameAttribute, SetAttributeValue
 from .utils.editable_label import EditableLabel
-from .utils.helper import AttributeNameValidator, IntDelegate, FloatDelegate, \
-    DateTimeDelegate, StrDelegate, BoolDelegate
+from .utils.helper import AttributeNameValidator, BoolDelegate, DateTimeDelegate, FloatDelegate, IntDelegate, \
+    StrDelegate
 from .utils.keyword_list import EditableKeywordListWidget
 
 
