@@ -2,9 +2,10 @@ import datetime as dt
 import os
 import pickle
 import tempfile
-from typing import Any, Dict, List, Optional, Sequence, Union, cast
+from typing import Any, Dict, List, Optional, Sequence, Set, Union, cast
 
 from PySide6.QtCore import QAbstractItemModel, QMimeData, QModelIndex, QPersistentModelIndex, QUrl, Qt, Signal
+from PySide6.QtWidgets import QApplication, QStyle
 
 from tscat import _Catalogue
 from .actions import Action, CreateEntityAction, DeleteAttributeAction, DeletePermanentlyAction, GetCatalogueAction, \
@@ -30,10 +31,20 @@ class TscatRootModel(QAbstractItemModel):
 
         self._catalogues: Dict[str, CatalogModel] = {}
 
+        self.expanded_indexes: Set[QModelIndex] = set()
+
         tscat_driver.action_done_prioritised.connect(self._driver_action_done, Qt.QueuedConnection)
 
         tscat_driver.do(GetCataloguesAction(None, False))
         tscat_driver.do(GetCataloguesAction(None, True))
+
+    def collapsed(self, index: QModelIndex) -> None:
+        self.expanded_indexes.remove(index)
+        self.dataChanged.emit(index, Qt.DecorationRole)  # type: ignore
+
+    def expanded(self, index: QModelIndex) -> None:
+        self.expanded_indexes.add(index)
+        self.dataChanged.emit(index, Qt.DecorationRole)  # type: ignore
 
     def _trash_index(self) -> QModelIndex:
         return self.index(0, 0, QModelIndex())
@@ -271,6 +282,17 @@ class TscatRootModel(QAbstractItemModel):
             item = cast(NamedNode, index.internalPointer())
             if role == Qt.ItemDataRole.DisplayRole:
                 return item.name
+            elif role == Qt.DecorationRole:
+                if isinstance(item, CatalogNode):
+                    return QApplication.style().standardIcon(QStyle.SP_FileIcon)
+                elif isinstance(item, FolderNode):
+                    if index in self.expanded_indexes:
+                        return QApplication.style().standardIcon(QStyle.SP_DirOpenIcon)
+                    else:
+                        return QApplication.style().standardIcon(QStyle.SP_DirClosedIcon)
+                elif isinstance(item, TrashNode):
+                    return QApplication.style().standardIcon(QStyle.SP_TrashIcon)
+
             elif role == UUIDDataRole:
                 if isinstance(item, (CatalogNode, FolderNode)):
                     return item.uuid

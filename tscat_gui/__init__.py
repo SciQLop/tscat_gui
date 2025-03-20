@@ -19,8 +19,8 @@ from .model_base.constants import EntityRole, UUIDDataRole
 from .state import AppState
 from .tscat_driver.actions import Action, AddEventsToCatalogueAction, CanonicalizeImportAction, CreateEntityAction, \
     DeleteAttributeAction, MoveToTrashAction, SaveAction, SetAttributeAction
-from .undo import AddEventsToCatalogue, DeletePermanently, Import, MoveEntityToTrash, NewCatalogue, NewEvent, \
-    RestoreEntityFromTrash, SetAttributeValue, CreateOrSetCataloguePath
+from .undo import AddEventsToCatalogue, CreateOrSetCataloguePath, DeletePermanently, Import, MoveEntityToTrash, \
+    NewCatalogue, NewEvent, RestoreEntityFromTrash, SetAttributeValue
 from .utils.import_export import export_to_json, export_to_votable, import_json, import_votable
 
 
@@ -348,6 +348,11 @@ class TSCatGUI(QtWidgets.QWidget):
             self.__catalogue_selection_changed,
             type=QtCore.Qt.DirectConnection)  # type: ignore
 
+        self.catalogues_view.expanded.connect(
+            lambda index: self.catalogue_model.expanded(self.catalogue_sort_filter_model.mapToSource(index)))
+        self.catalogues_view.collapsed.connect(
+            lambda index: self.catalogue_model.collapsed(self.catalogue_sort_filter_model.mapToSource(index)))
+
         # Catalogue Layout and Filter
         hlayout = QtWidgets.QHBoxLayout()
         hlayout.setContentsMargins(0, 0, 0, 0)
@@ -377,7 +382,6 @@ class TSCatGUI(QtWidgets.QWidget):
 
         # Toolbar
         toolbar = QtWidgets.QToolBar()
-
 
         action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DirIcon),  # type: ignore
                                "Create Folder", self)
