@@ -368,7 +368,8 @@ class TscatRootModel(QAbstractItemModel):
                             catalogues_paths[c.uuid] = (catalogue_path,
                                                         parent_path + catalogue_path[len(folder_path) - 1:])
             # print(json.dumps(catalogues_new_path, indent=4))
-            self.catalogues_dropped_on_folder.emit(catalogues_paths)
+            if catalogues_paths:
+                self.catalogues_dropped_on_folder.emit(catalogues_paths)
 
         return True
 
