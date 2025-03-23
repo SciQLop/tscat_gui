@@ -352,6 +352,19 @@ class TscatRootModel(QAbstractItemModel):
 
                 assert index.isValid()
 
+                all_parents = [parent]
+                i = parent
+                while i.parent().isValid():
+                    all_parents.append(i.parent())
+                    i = i.parent()
+
+                # do not allow dropping of path to itself or any of its children
+                if index in all_parents:
+                    continue
+
+                if index.parent() == parent:  # if the parent is the same, no need to change the path
+                    continue
+
                 node = index.internalPointer()
                 if isinstance(node, CatalogNode):  # for catalogues the new path is the parent's path
                     catalogues_paths[uuid] = (self.current_path(self._index_from_node(node)), parent_path)
