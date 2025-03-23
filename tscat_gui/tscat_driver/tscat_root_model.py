@@ -392,24 +392,24 @@ class TscatRootModel(QAbstractItemModel):
     def mimeData(self, indexes: Sequence[QModelIndex]) -> QMimeData:
         mime_data = super().mimeData(indexes)
 
-        urls: List[QUrl] = []
-        for index in indexes:
-            now = dt.datetime.now().isoformat()
-            if index.data(EntityRole) is None:  # for catalogues only, ignore folders
-                continue
+        # urls: List[QUrl] = []
+        # for index in indexes:
+        #     now = dt.datetime.now().isoformat()
+        #     if index.data(EntityRole) is None:  # for catalogues only, ignore folders
+        #         continue
 
-            catalogue = self.data(index, EntityRole)
+        #     catalogue = self.data(index, EntityRole)
 
-            path = os.path.join(tempfile.gettempdir(), 'tscat_gui', f'{catalogue.name}-{now}-export.json')
-            os.makedirs(os.path.dirname(path), exist_ok=True)
+        #     path = os.path.join(tempfile.gettempdir(), 'tscat_gui', f'{catalogue.name}-{now}-export.json')
+        #     os.makedirs(os.path.dirname(path), exist_ok=True)
 
-            print('exporting', catalogue, path)
-            result = export_to_json(path, [catalogue.uuid])
+        #     print('exporting', catalogue, path)
+        #     result = export_to_json(path, [catalogue.uuid])
 
-            if result is None:
-                path_url = QUrl.fromLocalFile(path)
-                urls.append(path_url)
-        mime_data.setUrls(urls)
+        #     if result is None:
+        #         path_url = QUrl.fromLocalFile(path)
+        #         urls.append(path_url)
+        # mime_data.setUrls(urls)
 
         mime_data.setData('application/x-tscat-catalogue-uuid-list', pickle.dumps([self.data(index, UUIDDataRole)
                                                                                    for index in indexes]))
