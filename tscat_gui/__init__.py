@@ -269,7 +269,6 @@ class TSCatGUI(QtWidgets.QWidget):
     def __new_folder(self) -> None:
         # use QInputDialog to get the new folder name
         folder_name, ok = QtWidgets.QInputDialog.getText(self, 'Create Folder', 'Folder name:')
-        print(folder_name, ok)
 
         if ok:
             new_path = self.state.current_catalogue_path() + [folder_name]

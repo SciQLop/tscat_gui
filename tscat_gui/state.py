@@ -59,7 +59,6 @@ class AppState(QtCore.QObject):
         self.state_changed.emit(action, ty, uuids)
 
     def set_catalogue_path(self, path: List[str]) -> None:
-        print("setting path", path)
         self._select_state.catalogue_path = path
 
     def current_catalogue_path(self) -> List[str]:
