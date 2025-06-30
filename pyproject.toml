@@ -4,7 +4,7 @@ requires = ["flit_core"]
 
 [project]
 name = 'tscat_gui'
-version = "0.4.0"
+version = "0.5.0"
 description = "Time-series catalogue - graphical user interface."
 keywords = ["satellite", "plasma-physics", "nasa-data", "amda", "cdpp", "SciQLop"]
 authors = [
