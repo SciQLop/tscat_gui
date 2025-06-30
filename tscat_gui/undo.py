@@ -346,10 +346,8 @@ class CreateOrSetCataloguePath(_EntityBased):
                  catalogues_paths: Dict[str, Tuple[List[str]]], parent=None):
         super().__init__(state, parent)
 
-        print(catalogues_paths)
-
         self._select_state.selected_catalogues = list(catalogues_paths.keys())
-        self.setText(f'Move catalogues to new paths')
+        self.setText('Move catalogues to new paths')
         self.paths = catalogues_paths
 
     def _redo(self) -> None:
