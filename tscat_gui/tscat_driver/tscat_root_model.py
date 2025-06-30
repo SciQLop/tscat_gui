@@ -318,9 +318,9 @@ class TscatRootModel(QAbstractItemModel):
     def canDropMimeData(self, data: QMimeData, action: Qt.DropAction,
                         row: int, column: int,
                         parent: Union[QModelIndex, QPersistentModelIndex]) -> bool:
-        # on Catalogues, we can drop events
+        # on Catalogues, we can drop events or catalogues (convenient for moving catalogues next to each other)
         if isinstance(parent.data(EntityRole), _Catalogue):
-            if data.hasFormat('application/x-tscat-event-uuid-list'):
+            if data.hasFormat('application/x-tscat-event-uuid-list') or data.hasFormat('application/x-tscat-catalogue-uuid-list'):
                 return True
         # on everything else except Trash we can drop catalogues - because it is a FolderNode or Trash
         else:
