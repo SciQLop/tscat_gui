@@ -12,6 +12,7 @@ class EditableLabel(QtWidgets.QFrame):
 
         def __init__(self, text: str, parent=None):
             super().__init__(text, parent)
+            self.setObjectName('EditableLabel--Label')
 
         def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
             if event.button() == QtCore.Qt.MouseButton.LeftButton:
@@ -33,7 +34,7 @@ class EditableLabel(QtWidgets.QFrame):
 
         def __init__(self, text: str, validator: QtGui.QValidator, parent=None):
             super().__init__(text, parent)
-
+            self.setObjectName('EditableLabel--LineEdit')
             self.setValidator(validator)
 
             self.textChanged.connect(self.text_changed)  # type: ignore
@@ -68,7 +69,6 @@ class EditableLabel(QtWidgets.QFrame):
 
     def __init__(self, text: str, validator: typing.Optional[QtGui.QValidator] = None, parent=None):
         super().__init__(parent)
-
         self.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)  # type: ignore
 
         self.text = text

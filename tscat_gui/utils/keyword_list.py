@@ -80,6 +80,7 @@ class EditableKeywordListWidget(QtWidgets.QWidget):
 
         self.new_tag = QtWidgets.QToolButton(self)
         self.new_tag.setText('➕')
+        self.new_tag.setObjectName('NewTagButton')
         self.new_tag.clicked.connect(lambda _: self._add_tag('', edit=True))  # type: ignore
         self._layout.addWidget(self.new_tag)
 
