@@ -11,6 +11,7 @@ from .actions import Action, AddEventsToCatalogueAction, DeleteAttributeAction, 
 from .driver import tscat_driver
 from .nodes import CatalogNode, EventNode, TrashNode
 from ..model_base.constants import EntityRole, UUIDDataRole
+from .mime import MimeType
 
 
 class CatalogModel(QAbstractTableModel):
@@ -182,10 +183,10 @@ class CatalogModel(QAbstractTableModel):
         return QModelIndex()
 
     def mimeTypes(self) -> List[str]:
-        return super().mimeTypes() + ['application/x-tscat-event-uuid-list']
+        return super().mimeTypes() + [MimeType.EVENT_UUID_LIST.value]
 
     def mimeData(self, indexes: Sequence[QModelIndex]) -> QMimeData:
         mime_data = super().mimeData(indexes)
-        mime_data.setData('application/x-tscat-event-uuid-list',
+        mime_data.setData(MimeType.EVENT_UUID_LIST.value,
                           pickle.dumps([index.data(UUIDDataRole) for index in indexes if index.column() == 0]))
         return mime_data

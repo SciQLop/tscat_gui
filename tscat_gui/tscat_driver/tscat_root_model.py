@@ -1,10 +1,7 @@
-import datetime as dt
-import os
 import pickle
-import tempfile
 from typing import Any, Dict, List, Optional, Sequence, Set, Union, cast
 
-from PySide6.QtCore import QAbstractItemModel, QMimeData, QModelIndex, QPersistentModelIndex, QUrl, Qt, Signal
+from PySide6.QtCore import QAbstractItemModel, QMimeData, QModelIndex, QPersistentModelIndex, Qt, Signal
 from PySide6.QtWidgets import QApplication, QStyle
 
 from tscat import _Catalogue
@@ -15,7 +12,7 @@ from .catalog_model import CatalogModel
 from .driver import tscat_driver
 from .nodes import CatalogNode, FolderNode, NamedNode, Node, RootNode, TrashNode
 from ..model_base.constants import EntityRole, PathAttributeName, UUIDDataRole
-from ..utils.import_export import export_to_json
+from .mime import is_catalogue_uuid_list, is_event_uuid_list, catalogue_uuid_list, event_uuid_list, MimeType
 
 
 class TscatRootModel(QAbstractItemModel):
@@ -121,6 +118,20 @@ class TscatRootModel(QAbstractItemModel):
         self.beginInsertRows(parent_index, len(parent_node.children), len(parent_node.children))
         parent_node.append_child(node)
         self.endInsertRows()
+
+    @staticmethod
+    def _is_inside_trash(index: QModelIndex) -> bool:
+        if not index.isValid():
+            return False
+
+        # check if the index is inside the TrashNode
+        node = cast(Node, index.internalPointer())
+        while node is not None:
+            if isinstance(node, TrashNode):
+                return True
+            node = node.parent
+
+        return False
 
     def index_from_uuid(self, uuid: str) -> QModelIndex:
         node = self._node_from_uuid(uuid)
@@ -318,15 +329,15 @@ class TscatRootModel(QAbstractItemModel):
     def canDropMimeData(self, data: QMimeData, action: Qt.DropAction,
                         row: int, column: int,
                         parent: Union[QModelIndex, QPersistentModelIndex]) -> bool:
+
+        if self._is_inside_trash(parent):
+            return False
         # on Catalogues, we can drop events or catalogues (convenient for moving catalogues next to each other)
-        if isinstance(parent.data(EntityRole), _Catalogue):
-            if data.hasFormat('application/x-tscat-event-uuid-list') or data.hasFormat('application/x-tscat-catalogue-uuid-list'):
-                return True
+        elif isinstance(parent.data(EntityRole), _Catalogue):
+            return  is_event_uuid_list(data) or is_catalogue_uuid_list(data)
         # on everything else except Trash we can drop catalogues - because it is a FolderNode or Trash
         else:
-            if parent != self._trash_index() and data.hasFormat('application/x-tscat-catalogue-uuid-list'):
-                return True
-        return False
+            return (parent != self._trash_index()) and is_catalogue_uuid_list(data)
 
     def dropMimeData(self, data: QMimeData, action: Qt.DropAction,
                      row: int, column: int,
@@ -337,12 +348,11 @@ class TscatRootModel(QAbstractItemModel):
         if action == Qt.DropAction.IgnoreAction:
             return True
 
-        if data.hasFormat('application/x-tscat-event-uuid-list'):
+        if is_event_uuid_list(data):
             self.events_dropped_on_catalogue.emit(parent.data(UUIDDataRole),
-                                                  pickle.loads(
-                                                      data.data('application/x-tscat-event-uuid-list')))  # type: ignore
-        elif data.hasFormat('application/x-tscat-catalogue-uuid-list'):  # per canDropMimeData, parent is a FolderNode
-            uuids = pickle.loads(data.data('application/x-tscat-catalogue-uuid-list'))
+                                                  event_uuid_list(data))
+        elif is_catalogue_uuid_list(data):  # per canDropMimeData, parent is a FolderNode
+            uuids = catalogue_uuid_list(data)
             parent_path = self.current_path(parent)
 
             # dict keeping the old and new paths of the catalogues in a tuple, keyed by uuid
@@ -391,27 +401,7 @@ class TscatRootModel(QAbstractItemModel):
 
     def mimeData(self, indexes: Sequence[QModelIndex]) -> QMimeData:
         mime_data = super().mimeData(indexes)
-
-        # urls: List[QUrl] = []
-        # for index in indexes:
-        #     now = dt.datetime.now().isoformat()
-        #     if index.data(EntityRole) is None:  # for catalogues only, ignore folders
-        #         continue
-
-        #     catalogue = self.data(index, EntityRole)
-
-        #     path = os.path.join(tempfile.gettempdir(), 'tscat_gui', f'{catalogue.name}-{now}-export.json')
-        #     os.makedirs(os.path.dirname(path), exist_ok=True)
-
-        #     print('exporting', catalogue, path)
-        #     result = export_to_json(path, [catalogue.uuid])
-
-        #     if result is None:
-        #         path_url = QUrl.fromLocalFile(path)
-        #         urls.append(path_url)
-        # mime_data.setUrls(urls)
-
-        mime_data.setData('application/x-tscat-catalogue-uuid-list', pickle.dumps([self.data(index, UUIDDataRole)
+        mime_data.setData(MimeType.CATALOGUE_UUID_LIST.value, pickle.dumps([self.data(index, UUIDDataRole)
                                                                                    for index in indexes]))
         return mime_data
 
