@@ -549,6 +549,24 @@ def main():
     # QtWidgets.QApplication.setDesktopSettingsAware(False)  # defaulting to light mode
 
     app = QtWidgets.QApplication(sys.argv)
+    app.setApplicationName('TSCat GUI')
+    app.setApplicationVersion(__version__)
+    app.setOrganizationName('Laboratory of Plasma Physics')
+    app.setOrganizationDomain('https://www.lpp.fr')
+    app.setStyleSheet(
+        f"""
+        #DeleteLabel {{
+                    border-radius: 5px;
+                    background: {app.palette().dark().color().name()};
+                    min-width: 10px;
+                    min-height: 10px;
+        }}
+        #OneKeyword {{
+                border-radius: 15px;
+                background: {app.palette().mid().color().name()};
+        }}
+        """
+    )
 
     main = QtWidgets.QMainWindow()
 

@@ -20,13 +20,6 @@ class _Keyword(EditableLabel):
             super().__init__('✕', parent)
             self.setMargin(1)
             self.setObjectName('DeleteLabel')
-            self.setStyleSheet(
-                f"""#DeleteLabel {{
-                    border-radius: 5px;
-                    background: {self.palette().dark().color().name()};
-                    min-width: 10px;
-                    min-height: 10px;
-                }}""")
 
         def enterEvent(self, event: QtCore.QEvent) -> None:
             self.setText('✖')
@@ -67,10 +60,6 @@ class _Keyword(EditableLabel):
         self._layout.setContentsMargins(5, 5, 5, 5)
 
         self.setObjectName('OneKeyword')
-        self.setStyleSheet(f"""#OneKeyword {{
-                border-radius: 15px;
-                background: {self.palette().mid().color().name()};
-            }}""")
 
     def edit(self):
         super().edit()
@@ -89,7 +78,7 @@ class EditableKeywordListWidget(QtWidgets.QWidget):
 
         self._layout = FlowLayout()
 
-        self.new_tag = QtWidgets.QToolButton()
+        self.new_tag = QtWidgets.QToolButton(self)
         self.new_tag.setText('➕')
         self.new_tag.clicked.connect(lambda _: self._add_tag('', edit=True))  # type: ignore
         self._layout.addWidget(self.new_tag)
