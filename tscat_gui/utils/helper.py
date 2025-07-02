@@ -85,6 +85,9 @@ class StrDelegate(QtWidgets.QLineEdit):
 class DateTimeDelegate(QtWidgets.QDateTimeEdit):
     def __init__(self, value: Union[dt.datetime, None] = None, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(dt.datetime.now() if value is None else value, parent)  # type: ignore
+        self.setDisplayFormat("yyyy-MM-dd HH:mm:ss:zzz")
+        self.setCalendarPopup(True)
+        self.setTimeSpec(QtCore.Qt.TimeSpec.UTC)
 
     def value(self) -> dt.datetime:
         return cast(dt.datetime, self.dateTime().toPython())
