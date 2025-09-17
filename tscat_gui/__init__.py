@@ -2,7 +2,7 @@
 
 __author__ = """Patrick Boettcher"""
 __email__ = 'p@yai.se'
-__version__ = '0.5.0'
+__version__ = '0.6.0'
 
 import datetime as dt
 import os
