@@ -27,6 +27,7 @@ class TscatRootModel(QAbstractItemModel):
         self._root.append_child(self._trash)
 
         self._catalogues: Dict[str, CatalogModel] = {}
+        self._uuid_to_node: Dict[str, Node] = {}
 
         self.expanded_indexes: Set[QPersistentModelIndex] = set()
 
@@ -60,6 +61,7 @@ class TscatRootModel(QAbstractItemModel):
 
                 new_folder = FolderNode(folder)
                 parent.append_child(new_folder)
+                self._uuid_to_node[new_folder.uuid] = new_folder
                 parent = new_folder
 
                 if create_index_for_new_folders:
@@ -75,19 +77,18 @@ class TscatRootModel(QAbstractItemModel):
 
         return parent
 
-    def _node_from_uuid(self, uuid: str) -> Optional[CatalogNode]:
+    def _rebuild_uuid_index(self) -> None:
+        self._uuid_to_node.clear()
         stack = [self._root]
-
         while stack:
             node = stack.pop()
-            if isinstance(node, (CatalogNode, FolderNode)) and node.uuid == uuid:
-                return node
-
-            # we do not want to search in Catalogue's children, they are events
+            if isinstance(node, (CatalogNode, FolderNode)):
+                self._uuid_to_node[node.uuid] = node
             if not isinstance(node, CatalogNode):
                 stack.extend(node.children)
 
-        return None
+    def _node_from_uuid(self, uuid: str) -> Optional[CatalogNode]:
+        return self._uuid_to_node.get(uuid)
 
     def _index_from_node(self, node: Node) -> QModelIndex:
         if node.parent is None:
@@ -105,6 +106,7 @@ class TscatRootModel(QAbstractItemModel):
         self.beginRemoveRows(index.parent(), index.row(), index.row())
         node.parent.remove_child(node)
         self.endRemoveRows()
+        self._uuid_to_node.pop(node.uuid, None)
 
         return node
 
@@ -118,6 +120,7 @@ class TscatRootModel(QAbstractItemModel):
         self.beginInsertRows(parent_index, len(parent_node.children), len(parent_node.children))
         parent_node.append_child(node)
         self.endInsertRows()
+        self._uuid_to_node[node.uuid] = node
 
     @staticmethod
     def _is_inside_trash(index: QModelIndex) -> bool:
@@ -143,14 +146,19 @@ class TscatRootModel(QAbstractItemModel):
         if isinstance(action, GetCataloguesAction):
             if action.removed_items:
                 if self._trash.children:
+                    for child in self._trash.children:
+                        self._uuid_to_node.pop(child.uuid, None)
                     self.beginRemoveRows(self._trash_index(), 0, len(self._trash.children) - 1)
                     self._trash.set_children([])
                     self.endRemoveRows()
 
                 if action.catalogues:
+                    new_children = list(map(CatalogNode, action.catalogues))
                     self.beginInsertRows(self._trash_index(), 0, len(action.catalogues) - 1)
-                    self._trash.set_children(list(map(CatalogNode, action.catalogues)))
+                    self._trash.set_children(new_children)
                     self.endInsertRows()
+                    for child in new_children:
+                        self._uuid_to_node[child.uuid] = child
             else:
                 self.beginResetModel()
                 self._root.set_children([self._trash])
@@ -159,6 +167,7 @@ class TscatRootModel(QAbstractItemModel):
                     parent_node = self._node_from_catalogue_path(c)
                     parent_node.append_child(CatalogNode(c))
                 self.endResetModel()
+                self._rebuild_uuid_index()
 
         elif isinstance(action, GetCatalogueAction):
             # also search in Trash :D
@@ -217,19 +226,10 @@ class TscatRootModel(QAbstractItemModel):
 
     def catalog(self, uuid: str) -> CatalogModel:
         if uuid not in self._catalogues:
-            # DFS search for the CatalogNode with the given uuid
-            stack = [self._root]
-
-            while stack:
-                node = stack.pop()
-                if isinstance(node, CatalogNode) and node.uuid == uuid:
-                    catalogue_model = CatalogModel(node)
-                    self._catalogues[uuid] = catalogue_model
-                    tscat_driver.do(GetCatalogueAction(None, removed_items=False, uuid=uuid))
-                    break
-
-                if not isinstance(node, CatalogNode):  # we do not want to search in Catalogue's children
-                    stack.extend(node.children)
+            node = self._uuid_to_node.get(uuid)
+            if isinstance(node, CatalogNode):
+                self._catalogues[uuid] = CatalogModel(node)
+                tscat_driver.do(GetCatalogueAction(None, removed_items=False, uuid=uuid))
 
         return self._catalogues[uuid]
 
