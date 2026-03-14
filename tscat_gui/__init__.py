@@ -54,6 +54,8 @@ class _TrashAlwaysTopOrBottomSortFilterModel(QtCore.QSortFilterProxyModel):
             return False
         elif right == 'Trash':
             return True
+        elif left is None or right is None:
+            return left is None
         else:
             return left.lower() < right.lower()
 
@@ -492,7 +494,7 @@ class TSCatGUI(QtWidgets.QWidget):
         self.setLayout(layout)
 
     def _external_signal_emission_changed(self, action: Action) -> None:
-        if isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
+        if isinstance(action, (SetAttributeAction, DeleteAttributeAction)) and action.entities:
             if isinstance(action.entities[0], _Catalogue):
                 self.catalogues_changed.emit([e.uuid for e in action.entities])
             else:

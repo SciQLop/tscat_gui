@@ -34,6 +34,7 @@ test = [
     "pytest>=4.6.5",
     "pytest-cov",
     "pytest-timeout",
+    "pytest-qt",
     "ddt",
 ]
 doc = [
@@ -41,6 +42,9 @@ doc = [
     "sphinx_rtd_theme",
     "sphinx-autodoc-typehints",
 ]
+
+[project.scripts]
+tscat_gui = "tscat_gui:main"
 
 [project.urls]
 homepage = "https://github.com/SciQLop/tscat_gui"
@@ -60,3 +64,8 @@ line-length = 120
 [tool.ruff.lint]
 select = ["E", "F", "W"]
 exclude = ["docs"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.6",
+]

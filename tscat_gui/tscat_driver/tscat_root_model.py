@@ -28,7 +28,7 @@ class TscatRootModel(QAbstractItemModel):
 
         self._catalogues: Dict[str, CatalogModel] = {}
 
-        self.expanded_indexes: Set[QModelIndex] = set()
+        self.expanded_indexes: Set[QPersistentModelIndex] = set()
 
         tscat_driver.action_done_prioritised.connect(self._driver_action_done, Qt.QueuedConnection)
 
@@ -36,12 +36,12 @@ class TscatRootModel(QAbstractItemModel):
         tscat_driver.do(GetCataloguesAction(None, True))
 
     def collapsed(self, index: QModelIndex) -> None:
-        self.expanded_indexes.remove(index)
-        self.dataChanged.emit(index, Qt.DecorationRole)  # type: ignore
+        self.expanded_indexes.discard(QPersistentModelIndex(index))
+        self.dataChanged.emit(index, index, [Qt.DecorationRole])  # type: ignore
 
     def expanded(self, index: QModelIndex) -> None:
-        self.expanded_indexes.add(index)
-        self.dataChanged.emit(index, Qt.DecorationRole)  # type: ignore
+        self.expanded_indexes.add(QPersistentModelIndex(index))
+        self.dataChanged.emit(index, index, [Qt.DecorationRole])  # type: ignore
 
     def _trash_index(self) -> QModelIndex:
         return self.index(0, 0, QModelIndex())
@@ -142,13 +142,15 @@ class TscatRootModel(QAbstractItemModel):
     def _driver_action_done(self, action: Action) -> None:
         if isinstance(action, GetCataloguesAction):
             if action.removed_items:
-                self.beginRemoveRows(self._trash_index(), 0, len(self._trash.children) - 1)
-                self._trash.set_children([])
-                self.endRemoveRows()
+                if self._trash.children:
+                    self.beginRemoveRows(self._trash_index(), 0, len(self._trash.children) - 1)
+                    self._trash.set_children([])
+                    self.endRemoveRows()
 
-                self.beginInsertRows(self._trash_index(), 0, len(action.catalogues) - 1)
-                self._trash.set_children(list(map(CatalogNode, action.catalogues)))
-                self.endInsertRows()
+                if action.catalogues:
+                    self.beginInsertRows(self._trash_index(), 0, len(action.catalogues) - 1)
+                    self._trash.set_children(list(map(CatalogNode, action.catalogues)))
+                    self.endInsertRows()
             else:
                 self.beginResetModel()
                 self._root.set_children([self._trash])
@@ -297,7 +299,7 @@ class TscatRootModel(QAbstractItemModel):
                 if isinstance(item, CatalogNode):
                     return QApplication.style().standardIcon(QStyle.SP_FileIcon)
                 elif isinstance(item, FolderNode):
-                    if index in self.expanded_indexes:
+                    if QPersistentModelIndex(index) in self.expanded_indexes:
                         return QApplication.style().standardIcon(QStyle.SP_DirOpenIcon)
                     else:
                         return QApplication.style().standardIcon(QStyle.SP_DirClosedIcon)

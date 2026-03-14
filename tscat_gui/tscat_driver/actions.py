@@ -1,6 +1,7 @@
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, List, Optional, Sequence, Type, Union
 
 from tscat import EventQueryInformation, _Catalogue, _Event, add_events_to_catalogue, canonicalize_json_import, \
@@ -198,7 +199,8 @@ class CanonicalizeImportAction(Action):
 
 def CanonicalizeJSONImportAction(*args, **kwargs) -> CanonicalizeImportAction:
     return CanonicalizeImportAction(*args, **kwargs,
-                                    importer=lambda filename: canonicalize_json_import(open(filename).read()))
+                                    importer=lambda filename: canonicalize_json_import(
+                                        Path(filename).read_text()))
 
 
 def CanonicalizeVOTableImportAction(*args, **kwargs) -> CanonicalizeImportAction:
@@ -316,9 +318,9 @@ class RestorePermanentlyDeletedAction(Action):
                 linked_entities = list(map(self._entity, e.linked_uuids))
 
             if isinstance(entity, _Catalogue):
-                assert all(lambda x=x: isinstance(x, _Event) for x in linked_entities)
+                assert all(isinstance(x, _Event) for x in linked_entities)
                 add_events_to_catalogue(entity, linked_entities)  # type: ignore
             elif isinstance(entity, _Event):
                 for c in linked_entities:
                     assert isinstance(c, _Catalogue)
-                    add_events_to_catalogue(c, entity)
+                    add_events_to_catalogue(c, [entity])

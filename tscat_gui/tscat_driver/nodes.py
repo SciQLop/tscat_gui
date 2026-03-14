@@ -5,6 +5,7 @@ from typing import List, Optional, Sequence
 from PySide6 import QtCore
 
 from tscat import _Catalogue, _Event
+from ..logger import log
 
 
 class Node(ABC):
@@ -19,7 +20,7 @@ class Node(ABC):
     @parent.setter
     def parent(self, parent: 'Node') -> None:
         if self._parent is not None and self._parent != parent:  # reparenting forbidden
-            print('reparenting', self, self._parent, parent)
+            log.warning('reparenting %s from %s to %s', self, self._parent, parent)
         self._parent = parent
 
     @property
