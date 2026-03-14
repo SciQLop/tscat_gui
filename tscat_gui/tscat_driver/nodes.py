@@ -157,8 +157,8 @@ class FolderNode(NamedNode):
         FolderNode.LocalUniqueId += 1
 
     def full_path(self) -> List[str]:
-        path = []
-        node = self
+        path: List[str] = []
+        node: Optional['Node'] = self
         while isinstance(node, FolderNode):
             path.insert(0, node.name)
             node = node.parent

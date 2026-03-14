@@ -213,10 +213,11 @@ class AttributesGroupBox(QtWidgets.QGroupBox):
         # clear layout, destroy all widgets
         while True:
             item = self._layout.takeAt(0)
-            if item:
-                item.widget().deleteLater()
-            else:
+            if item is None:
                 break
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
 
         self.values = values
         self.attribute_name_labels = {}

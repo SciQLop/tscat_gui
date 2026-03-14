@@ -147,35 +147,70 @@ class TscatRootModel(QAbstractItemModel):
             return QModelIndex()
         return self._index_from_node(node)
 
+    def _on_get_catalogues(self, action: GetCataloguesAction) -> None:
+        if action.removed_items:
+            if self._trash.children:
+                for child in self._trash.children:
+                    self._uuid_to_node.pop(child.uuid, None)
+                self.beginRemoveRows(self._trash_index(), 0, len(self._trash.children) - 1)
+                self._trash.set_children([])
+                self.endRemoveRows()
+
+            if action.catalogues:
+                new_children = list(map(CatalogNode, action.catalogues))
+                self.beginInsertRows(self._trash_index(), 0, len(action.catalogues) - 1)
+                self._trash.set_children(new_children)
+                self.endInsertRows()
+                for child in new_children:
+                    self._uuid_to_node[child.uuid] = child
+        else:
+            self.beginResetModel()
+            self._root.set_children([self._trash])
+
+            for c in action.catalogues:
+                parent_node = self._node_from_catalogue_path(c)
+                parent_node.append_child(CatalogNode(c))
+            self.endResetModel()
+            self._rebuild_uuid_index()
+
+    def _on_entity_removed(self, action: Union[RemoveEntitiesAction, DeletePermanentlyAction]) -> None:
+        for uuid in action.uuids:
+            node = self._get_node_from_uuid_and_remove_from_tree(uuid)
+            if node is None:
+                continue
+
+            if uuid in self._catalogues:
+                self._catalogues[uuid].deleteLater()
+                del self._catalogues[uuid]
+
+    def _on_trash_action(self, action: Union[MoveToTrashAction, RestoreFromTrashAction]) -> None:
+        for uuid, entity in zip(action.uuids, action.entities):
+            node = self._get_node_from_uuid_and_remove_from_tree(uuid)
+            if node is None:
+                continue
+
+            node.node = entity
+
+            self._insert_catalogue_node_at_node_path_or_trash(node)
+
+    def _on_set_attribute(self, action: Union[SetAttributeAction, DeleteAttributeAction]) -> None:
+        for c in filter(lambda x: isinstance(x, _Catalogue), action.entities):
+            node = self._node_from_uuid(c.uuid)
+            if node is not None:
+                node.node = c
+
+                if action.name == PathAttributeName:
+                    node = self._get_node_from_uuid_and_remove_from_tree(c.uuid)
+                    self._insert_catalogue_node_at_node_path_or_trash(node)
+
+                index = self._index_from_node(node)
+                self.dataChanged.emit(index, index)  # type: ignore
+
     def _driver_action_done(self, action: Action) -> None:
         if isinstance(action, GetCataloguesAction):
-            if action.removed_items:
-                if self._trash.children:
-                    for child in self._trash.children:
-                        self._uuid_to_node.pop(child.uuid, None)
-                    self.beginRemoveRows(self._trash_index(), 0, len(self._trash.children) - 1)
-                    self._trash.set_children([])
-                    self.endRemoveRows()
-
-                if action.catalogues:
-                    new_children = list(map(CatalogNode, action.catalogues))
-                    self.beginInsertRows(self._trash_index(), 0, len(action.catalogues) - 1)
-                    self._trash.set_children(new_children)
-                    self.endInsertRows()
-                    for child in new_children:
-                        self._uuid_to_node[child.uuid] = child
-            else:
-                self.beginResetModel()
-                self._root.set_children([self._trash])
-
-                for c in action.catalogues:
-                    parent_node = self._node_from_catalogue_path(c)
-                    parent_node.append_child(CatalogNode(c))
-                self.endResetModel()
-                self._rebuild_uuid_index()
+            self._on_get_catalogues(action)
 
         elif isinstance(action, GetCatalogueAction):
-            # also search in Trash :D
             index = self.index_from_uuid(action.uuid)
             if index.isValid():
                 self.dataChanged.emit(index, index)  # type: ignore
@@ -186,25 +221,10 @@ class TscatRootModel(QAbstractItemModel):
                 self._insert_catalogue_node_at_node_path_or_trash(node)
 
         elif isinstance(action, (RemoveEntitiesAction, DeletePermanentlyAction)):
-            for uuid in action.uuids:
-                node = self._get_node_from_uuid_and_remove_from_tree(uuid)
-                if node is None:
-                    continue
+            self._on_entity_removed(action)
 
-                # in case a catalogueModel was created for this catalogue, remove it
-                if uuid in self._catalogues:
-                    self._catalogues[uuid].deleteLater()
-                    del self._catalogues[uuid]
-
-        elif isinstance(action, (MoveToTrashAction, RestoreFromTrashAction)):  # Move to Trash exists only for Catalogs
-            for uuid, entity in zip(action.uuids, action.entities):
-                node = self._get_node_from_uuid_and_remove_from_tree(uuid)
-                if node is None:
-                    continue
-
-                node.node = entity  # update the node's entity to the new one with the removed flag set
-
-                self._insert_catalogue_node_at_node_path_or_trash(node)
+        elif isinstance(action, (MoveToTrashAction, RestoreFromTrashAction)):
+            self._on_trash_action(action)
 
         elif isinstance(action, RestorePermanentlyDeletedAction):
             for e in action.deleted_entities:
@@ -213,17 +233,7 @@ class TscatRootModel(QAbstractItemModel):
                     self._insert_catalogue_node_at_node_path_or_trash(node)
 
         elif isinstance(action, (SetAttributeAction, DeleteAttributeAction)):
-            for c in filter(lambda x: isinstance(x, _Catalogue), action.entities):
-                node = self._node_from_uuid(c.uuid)
-                if node is not None:
-                    node.node = c
-
-                    if action.name == PathAttributeName:
-                        node = self._get_node_from_uuid_and_remove_from_tree(c.uuid)
-                        self._insert_catalogue_node_at_node_path_or_trash(node)
-
-                    index = self._index_from_node(node)
-                    self.dataChanged.emit(index, index)  # type: ignore
+            self._on_set_attribute(action)
 
         elif isinstance(action, ImportCanonicalizedDictAction):
             for node in list(map(CatalogNode, action.catalogues)):

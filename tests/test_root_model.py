@@ -1,8 +1,7 @@
 """Tests for TscatRootModel tree operations."""
-import datetime as dt
 
-from PySide6.QtCore import QModelIndex, Qt
-from tscat import _Catalogue, _Event
+from PySide6.QtCore import Qt
+from tscat import _Catalogue
 
 from tscat_gui.model_base.constants import EntityRole, UUIDDataRole
 from tscat_gui.tscat_driver.actions import (

@@ -317,7 +317,7 @@ class AddEventsToCatalogue(_EntityBased):
                  parent=None):
         super().__init__(state, parent)
 
-        self.setText(f'Add events to catalogue')
+        self.setText('Add events to catalogue')
         self.catalogue_uuid = catalogue_uuid
 
         # when adding events to a catalogue events might already be present or indirectly selected by the predicate
@@ -343,7 +343,7 @@ class AddEventsToCatalogue(_EntityBased):
 
 class CreateOrSetCataloguePath(_EntityBased):
     def __init__(self, state: AppState,
-                 catalogues_paths: Dict[str, Tuple[List[str]]], parent=None):
+                 catalogues_paths: Dict[str, Tuple[List[str], List[str]]], parent=None):
         super().__init__(state, parent)
 
         self._select_state.selected_catalogues = list(catalogues_paths.keys())

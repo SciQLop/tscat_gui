@@ -1,7 +1,6 @@
 """Tests for external signal emission."""
 import datetime as dt
 
-from tscat import _Catalogue, _Event
 
 from tscat_gui.tscat_driver.actions import (
     DeleteAttributeAction,
