@@ -17,10 +17,12 @@ from tscat import _Catalogue, _Event
 from .edit import EntityEditView
 from .model_base.constants import EntityRole, UUIDDataRole
 from .state import AppState
-from .tscat_driver.actions import Action, AddEventsToCatalogueAction, CanonicalizeImportAction, CreateEntityAction, \
+from .tscat_driver.actions import Action, AddEventsToCatalogueAction, CreateEntityAction, \
     DeleteAttributeAction, MoveToTrashAction, SaveAction, SetAttributeAction
-from .undo import AddEventsToCatalogue, CreateOrSetCataloguePath, DeletePermanently, Import, MoveEntityToTrash, \
-    NewCatalogue, NewEvent, RestoreEntityFromTrash, SetAttributeValue
+from .tscat_driver.actions import CanonicalizeImportAction as CanonicalizeImportAction  # noqa: F401 re-export
+from .undo import AddEventsToCatalogue, CreateOrSetCataloguePath, DeletePermanently, MoveEntityToTrash, \
+    NewCatalogue, NewEvent, RestoreEntityFromTrash
+from .undo import Import as Import, SetAttributeValue as SetAttributeValue  # noqa: F401 re-exports
 from .utils.import_export import export_to_json, export_to_votable, import_json, import_votable
 
 
@@ -286,9 +288,7 @@ class TSCatGUI(QtWidgets.QWidget):
             # expand the new folder
             self.catalogues_view.expand(index)
 
-    def __setup_ui(self) -> None:
-
-        # Event Model and View
+    def _setup_events_view(self) -> None:
         self.event_model = _TSCatConcatenateTablePM(self)
 
         self.events_sort_model = QtCore.QSortFilterProxyModel()
@@ -308,16 +308,7 @@ class TSCatGUI(QtWidgets.QWidget):
         self.events_view.selectionModel().selectionChanged.connect(  # type: ignore
             self.__current_event_changed, type=QtCore.Qt.DirectConnection)  # type: ignore
 
-        # Edit View
-        self.edit_view = EntityEditView(self.state, self)
-
-        # Event/Edit Vertial Splitter
-        self.splitter_right = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)  # type: ignore
-        self.splitter_right.addWidget(self.events_view)
-        self.splitter_right.addWidget(self.edit_view)
-
-        # Catalogue Model and View
-
+    def _setup_catalogues_view(self) -> None:
         from .tscat_driver.model import tscat_model
         self.catalogue_model = tscat_model.tscat_root()
         self.catalogue_model.events_dropped_on_catalogue.connect(lambda uuid, event_list:
@@ -356,34 +347,7 @@ class TSCatGUI(QtWidgets.QWidget):
         self.catalogues_view.collapsed.connect(
             lambda index: self.catalogue_model.collapsed(self.catalogue_sort_filter_model.mapToSource(index)))
 
-        # Catalogue Layout and Filter
-        hlayout = QtWidgets.QHBoxLayout()
-        hlayout.setContentsMargins(0, 0, 0, 0)
-        hlayout.addWidget(QtWidgets.QLabel('Filter:'))
-
-        catalogue_filter = QtWidgets.QLineEdit()
-        catalogue_filter.textChanged.connect(  # type: ignore
-            lambda t: self.catalogue_sort_filter_model.setFilterRegularExpression(t))
-
-        hlayout.addWidget(catalogue_filter)
-
-        layout = QtWidgets.QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addLayout(hlayout)
-        layout.addWidget(self.catalogues_view)
-
-        left_widget = QtWidgets.QWidget()
-        left_widget.setLayout(layout)
-
-        # MainWindow Catalogue/Right Splitter - Horizonal
-        splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)  # type: ignore
-        splitter.addWidget(left_widget)
-        splitter.addWidget(self.splitter_right)
-
-        layout = QtWidgets.QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        # Toolbar
+    def _setup_toolbar(self) -> QtWidgets.QToolBar:
         toolbar = QtWidgets.QToolBar()
 
         action = QtGui.QAction(self.style().standardIcon(QtWidgets.QStyle.SP_DirIcon),  # type: ignore
@@ -490,6 +454,46 @@ class TSCatGUI(QtWidgets.QWidget):
         toolbar.addAction(action)
 
         self.export_action = action
+
+        return toolbar
+
+    def __setup_ui(self) -> None:
+        self._setup_events_view()
+
+        self.edit_view = EntityEditView(self.state, self)
+
+        self.splitter_right = QtWidgets.QSplitter(QtCore.Qt.Vertical, self)  # type: ignore
+        self.splitter_right.addWidget(self.events_view)
+        self.splitter_right.addWidget(self.edit_view)
+
+        self._setup_catalogues_view()
+
+        hlayout = QtWidgets.QHBoxLayout()
+        hlayout.setContentsMargins(0, 0, 0, 0)
+        hlayout.addWidget(QtWidgets.QLabel('Filter:'))
+
+        catalogue_filter = QtWidgets.QLineEdit()
+        catalogue_filter.textChanged.connect(  # type: ignore
+            lambda t: self.catalogue_sort_filter_model.setFilterRegularExpression(t))
+
+        hlayout.addWidget(catalogue_filter)
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addLayout(hlayout)
+        layout.addWidget(self.catalogues_view)
+
+        left_widget = QtWidgets.QWidget()
+        left_widget.setLayout(layout)
+
+        splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)  # type: ignore
+        splitter.addWidget(left_widget)
+        splitter.addWidget(self.splitter_right)
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        toolbar = self._setup_toolbar()
 
         layout.addWidget(toolbar)
         layout.addWidget(splitter)

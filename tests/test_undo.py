@@ -1,11 +1,9 @@
 """Tests for undo commands."""
-import datetime as dt
 
-from tscat import _Catalogue, _Event
+from tscat import _Catalogue
 
 from tscat_gui.state import AppState
 from tscat_gui.tscat_driver.actions import (
-    AddEventsToCatalogueAction,
     CreateEntityAction,
     SetAttributeAction,
 )
