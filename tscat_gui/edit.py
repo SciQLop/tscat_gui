@@ -6,6 +6,7 @@ from PySide6 import QtCore, QtWidgets
 
 import tscat
 import tscat.filtering
+from .logger import log
 from .metadata import catalogue_meta_data
 from .model_base.constants import PathAttributeName
 from .predicate import SimplePredicateEditDialog
@@ -489,7 +490,7 @@ class EntityEditView(QtWidgets.QScrollArea):
         elif action == 'passive_select':
             pass
         else:
-            print('unsupported (old) state-changed', action)
+            log.warning('unsupported state-changed action: %s', action)
 
     def _model_action_done(self, action: Action) -> None:
         if self.edit:

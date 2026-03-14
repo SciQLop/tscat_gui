@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple, Type, Union
 from PySide6 import QtGui
 
 import tscat
+from .logger import log
 from .model_base.constants import PathAttributeName
 from .state import AppState
 from .tscat_driver.actions import AddEventsToCatalogueAction, CreateEntityAction, DeleteAttributeAction, \
@@ -86,20 +87,19 @@ class RenameAttribute(_EntityBased):
 
         self.new_name = new_name
         self.old_name = old_name
+        self.values = [entity.__dict__[old_name] for entity in self._mapped_selected_entities()]
 
     def _redo(self) -> None:
-        values = [entity.__dict__[self.old_name] for entity in self._mapped_selected_entities()]
         from .tscat_driver.model import tscat_model
         tscat_model.do(DeleteAttributeAction(None, self._selected_entities(), self.old_name))
-        tscat_model.do(SetAttributeAction(None, self._selected_entities(), self.new_name, values))
+        tscat_model.do(SetAttributeAction(None, self._selected_entities(), self.new_name, self.values))
 
         self._select(self._selected_entities())
 
     def _undo(self) -> None:
-        values = [entity.__dict__[self.new_name] for entity in self._mapped_selected_entities()]
         from .tscat_driver.model import tscat_model
         tscat_model.do(DeleteAttributeAction(None, self._selected_entities(), self.new_name))
-        tscat_model.do(SetAttributeAction(None, self._selected_entities(), self.old_name, values))
+        tscat_model.do(SetAttributeAction(None, self._selected_entities(), self.old_name, self.values))
 
         self._select(self._selected_entities())
 
@@ -160,7 +160,7 @@ class NewCatalogue(_EntityBased):
 
     def _redo(self) -> None:
         def creation_callback(action: CreateEntityAction) -> None:
-            print("New Catalogue created", action.entity)
+            log.debug("New Catalogue created: %s", action.entity)
             assert action.entity is not None
             self.uuid = action.entity.uuid
             assert self.uuid is not None

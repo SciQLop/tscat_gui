@@ -5,7 +5,7 @@ from PySide6.QtCore import QObject, QThread, Slot, Signal, Qt
 from tscat import _Catalogue, _Event
 
 from .actions import Action, GetCataloguesAction, GetCatalogueAction, CreateEntityAction, RemoveEntitiesAction, \
-    SetAttributeAction, DeleteAttributeAction, ImportCanonicalizedDictAction
+    SetAttributeAction, DeleteAttributeAction, ImportCanonicalizedDictAction, RestorePermanentlyDeletedAction
 
 
 class _TscatDriverWorker(QThread):
@@ -69,6 +69,11 @@ class TscatDriver(QObject):
         elif isinstance(action, ImportCanonicalizedDictAction):
             for c in action.catalogues:
                 self._entity_cache[c.uuid] = c
+
+        elif isinstance(action, RestorePermanentlyDeletedAction):
+            for e in action.deleted_entities:
+                if e.restored_entity is not None:
+                    self._entity_cache[e.restored_entity.uuid] = e.restored_entity
 
         self.action_done_prioritised.emit(action)
         self.action_done.emit(action)
