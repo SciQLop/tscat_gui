@@ -84,40 +84,42 @@ class CatalogModel(QAbstractTableModel):
 
         elif isinstance(action, RemoveEventsFromCatalogueAction):
             if action.catalogue_uuid == self._root.uuid:
+                uuid_set = set(action.uuids)
                 for row, c in reversed(list(enumerate(self._root.children))):
-                    for e in action.uuids:
-                        if c.uuid == e:
-                            self.beginRemoveRows(QModelIndex(), row, row)
-                            self._root.remove_child(c)
-                            self.endRemoveRows()
+                    if c.uuid in uuid_set:
+                        self.beginRemoveRows(QModelIndex(), row, row)
+                        self._root.remove_child(c)
+                        self.endRemoveRows()
                 for c in self._trash.children[:]:
-                    for e in action.uuids:
-                        if c.uuid == e:
-                            self._trash.remove_child(c)
+                    if c.uuid in uuid_set:
+                        self._trash.remove_child(c)
 
         elif isinstance(action, (RemoveEntitiesAction, DeletePermanentlyAction)):
+            uuid_set = set(action.uuids)
             for row, c in reversed(list(enumerate(self._root.children))):
-                if c.uuid in action.uuids:
+                if c.uuid in uuid_set:
                     self.beginRemoveRows(QModelIndex(), row, row)
                     self._root.remove_child(c)
                     self.endRemoveRows()
 
             for c in self._trash.children[:]:
-                if c.uuid in action.uuids:
+                if c.uuid in uuid_set:
                     self._trash.remove_child(c)
 
         elif isinstance(action, MoveToTrashAction):
+            uuid_set = set(action.uuids)
             for row, c in reversed(list(enumerate(self._root.children))):
-                if c.uuid in action.uuids:
+                if c.uuid in uuid_set:
                     self.beginRemoveRows(QModelIndex(), row, row)
                     self._root.remove_child(c)
                     self.endRemoveRows()
                     self._trash.append_child(c)
 
         elif isinstance(action, RestoreFromTrashAction):
+            uuid_set = set(action.uuids)
             nodes = []  # type: ignore
             for c in self._trash.children[:]:
-                if c.uuid in action.uuids:
+                if c.uuid in uuid_set:
                     self._trash.remove_child(c)
                     nodes.append(c)  # type: ignore
 

@@ -1,7 +1,7 @@
 """Tests for TscatRootModel tree operations."""
 import datetime as dt
 
-from PySide6.QtCore import QPersistentModelIndex, QModelIndex, Qt
+from PySide6.QtCore import QModelIndex, Qt
 from tscat import _Catalogue, _Event
 
 from tscat_gui.model_base.constants import EntityRole, UUIDDataRole
@@ -78,8 +78,8 @@ class TestTscatRootModel:
         node = model._node_from_uuid(uuid)
         assert node is not None
 
-    def test_expanded_indexes_use_persistent(self, wait_for_action, qtbot):
-        """Bug #4/stale indexes: expanded_indexes must use QPersistentModelIndex."""
+    def test_expanded_collapsed_tracking(self, wait_for_action, qtbot):
+        """Expanded/collapsed state is tracked correctly."""
         model = TscatRootModel()
 
         cat = wait_for_action(CreateEntityAction(None, _Catalogue, {
@@ -91,12 +91,10 @@ class TestTscatRootModel:
         assert index.isValid()
 
         model.expanded(index)
-        assert len(model.expanded_indexes) == 1
-        stored = next(iter(model.expanded_indexes))
-        assert isinstance(stored, QPersistentModelIndex)
+        assert len(model._expanded_nodes) == 1
 
         model.collapsed(index)
-        assert len(model.expanded_indexes) == 0
+        assert len(model._expanded_nodes) == 0
 
     def test_data_changed_signal_correct_signature(self, wait_for_action, qtbot):
         """Bug #4: dataChanged must emit (index, index, [role]), not (index, role)."""

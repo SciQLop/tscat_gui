@@ -29,7 +29,12 @@ class TscatRootModel(QAbstractItemModel):
         self._catalogues: Dict[str, CatalogModel] = {}
         self._uuid_to_node: Dict[str, Node] = {}
 
-        self.expanded_indexes: Set[QPersistentModelIndex] = set()
+        self._expanded_nodes: Set[int] = set()  # id(node) for O(1) lookup without QPersistentModelIndex
+
+        self._icon_file = QApplication.style().standardIcon(QStyle.SP_FileIcon)
+        self._icon_dir_open = QApplication.style().standardIcon(QStyle.SP_DirOpenIcon)
+        self._icon_dir_closed = QApplication.style().standardIcon(QStyle.SP_DirClosedIcon)
+        self._icon_trash = QApplication.style().standardIcon(QStyle.SP_TrashIcon)
 
         tscat_driver.action_done_prioritised.connect(self._driver_action_done, Qt.QueuedConnection)
 
@@ -37,11 +42,11 @@ class TscatRootModel(QAbstractItemModel):
         tscat_driver.do(GetCataloguesAction(None, True))
 
     def collapsed(self, index: QModelIndex) -> None:
-        self.expanded_indexes.discard(QPersistentModelIndex(index))
+        self._expanded_nodes.discard(id(index.internalPointer()))
         self.dataChanged.emit(index, index, [Qt.DecorationRole])  # type: ignore
 
     def expanded(self, index: QModelIndex) -> None:
-        self.expanded_indexes.add(QPersistentModelIndex(index))
+        self._expanded_nodes.add(id(index.internalPointer()))
         self.dataChanged.emit(index, index, [Qt.DecorationRole])  # type: ignore
 
     def _trash_index(self) -> QModelIndex:
@@ -297,14 +302,11 @@ class TscatRootModel(QAbstractItemModel):
                 return item.name
             elif role == Qt.DecorationRole:
                 if isinstance(item, CatalogNode):
-                    return QApplication.style().standardIcon(QStyle.SP_FileIcon)
+                    return self._icon_file
                 elif isinstance(item, FolderNode):
-                    if QPersistentModelIndex(index) in self.expanded_indexes:
-                        return QApplication.style().standardIcon(QStyle.SP_DirOpenIcon)
-                    else:
-                        return QApplication.style().standardIcon(QStyle.SP_DirClosedIcon)
+                    return self._icon_dir_open if id(item) in self._expanded_nodes else self._icon_dir_closed
                 elif isinstance(item, TrashNode):
-                    return QApplication.style().standardIcon(QStyle.SP_TrashIcon)
+                    return self._icon_trash
 
             elif role == UUIDDataRole:
                 if isinstance(item, (CatalogNode, FolderNode)):
