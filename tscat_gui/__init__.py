@@ -56,6 +56,8 @@ class _TrashAlwaysTopOrBottomSortFilterModel(QtCore.QSortFilterProxyModel):
             return False
         elif right == 'Trash':
             return True
+        elif left is None and right is None:
+            return False
         elif left is None or right is None:
             return left is None
         else:
