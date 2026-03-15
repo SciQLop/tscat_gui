@@ -195,6 +195,12 @@ class NewEvent(_EntityBased):
     def _redo(self):
         from .tscat_driver.model import tscat_model
 
+        if not self._select_state.selected_catalogues:
+            log.warning("NewEvent._redo() called with no catalogue selected, skipping")
+            return
+
+        catalogue_uuid = self._select_state.selected_catalogues[0]
+
         def add_to_catalogue_callback(action: AddEventsToCatalogueAction) -> None:
             assert self.uuid is not None
             self._select([self.uuid], tscat._Event)
@@ -203,7 +209,7 @@ class NewEvent(_EntityBased):
             self.uuid = action.entity.uuid
             assert self.uuid is not None  # satisfy mypy
             tscat_model.do(AddEventsToCatalogueAction(add_to_catalogue_callback,
-                                                      [self.uuid], self._select_state.selected_catalogues[0]))
+                                                      [self.uuid], catalogue_uuid))
 
         tscat_model.do(CreateEntityAction(creation_callback, tscat._Event,
                                           {
