@@ -29,7 +29,7 @@ class TscatRootModel(QAbstractItemModel):
         self._catalogues: Dict[str, CatalogModel] = {}
         self._uuid_to_node: Dict[str, Node] = {}
 
-        self._expanded_nodes: Set[int] = set()  # id(node) for O(1) lookup without QPersistentModelIndex
+        self._expanded_nodes: Set[str] = set()  # node UUIDs for stable expansion tracking
 
         self._icons_initialized = False
 
@@ -47,11 +47,13 @@ class TscatRootModel(QAbstractItemModel):
             self._icons_initialized = True
 
     def collapsed(self, index: QModelIndex) -> None:
-        self._expanded_nodes.discard(id(index.internalPointer()))
+        node = cast(NamedNode, index.internalPointer())
+        self._expanded_nodes.discard(node.uuid)
         self.dataChanged.emit(index, index, [Qt.DecorationRole])  # type: ignore
 
     def expanded(self, index: QModelIndex) -> None:
-        self._expanded_nodes.add(id(index.internalPointer()))
+        node = cast(NamedNode, index.internalPointer())
+        self._expanded_nodes.add(node.uuid)
         self.dataChanged.emit(index, index, [Qt.DecorationRole])  # type: ignore
 
     def _trash_index(self) -> QModelIndex:
@@ -327,7 +329,7 @@ class TscatRootModel(QAbstractItemModel):
                 if isinstance(item, CatalogNode):
                     return self._icon_file
                 elif isinstance(item, FolderNode):
-                    return self._icon_dir_open if id(item) in self._expanded_nodes else self._icon_dir_closed
+                    return self._icon_dir_open if item.uuid in self._expanded_nodes else self._icon_dir_closed
                 elif isinstance(item, TrashNode):
                     return self._icon_trash
 
