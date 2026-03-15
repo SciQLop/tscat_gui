@@ -3,12 +3,11 @@
 Each test reproduces a specific bug that was fixed, and must fail
 if the fix is reverted.
 """
-import datetime as dt
 from unittest.mock import patch
 
-from PySide6.QtCore import QModelIndex, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QStandardItemModel
-from tscat import _Catalogue, _Event
+from tscat import _Catalogue
 
 from tscat_gui.tscat_driver.actions import (
     CreateEntityAction,
