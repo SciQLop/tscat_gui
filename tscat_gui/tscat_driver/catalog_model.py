@@ -21,7 +21,7 @@ class CatalogModel(QAbstractTableModel):
         super().__init__()
         self._root = root
         self._trash = TrashNode()
-        tscat_driver.action_done_prioritised.connect(self._driver_action_done, Qt.QueuedConnection)
+        tscat_driver.action_done_prioritised.connect(self._driver_action_done, Qt.QueuedConnection)  # type: ignore[attr-defined]
 
     def _driver_action_done(self, action: Action) -> None:
         if isinstance(action, GetCatalogueAction):
@@ -70,8 +70,8 @@ class CatalogModel(QAbstractTableModel):
             nodes: List[EventNode] = []  # type: ignore
             for e in action.deleted_entities:
                 if e.type == _Event:
-                    event_node = EventNode(e.restored_entity, True)
-                    if e.restored_entity.is_removed():
+                    event_node = EventNode(e.restored_entity, True)  # type: ignore[arg-type]
+                    if e.restored_entity.is_removed():  # type: ignore[union-attr]
                         removed_nodes.append(event_node)
                     else:
                         nodes.append(event_node)

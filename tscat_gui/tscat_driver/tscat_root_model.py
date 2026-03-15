@@ -31,12 +31,12 @@ class TscatRootModel(QAbstractItemModel):
 
         self._expanded_nodes: Set[int] = set()  # id(node) for O(1) lookup without QPersistentModelIndex
 
-        self._icon_file = QApplication.style().standardIcon(QStyle.SP_FileIcon)
-        self._icon_dir_open = QApplication.style().standardIcon(QStyle.SP_DirOpenIcon)
-        self._icon_dir_closed = QApplication.style().standardIcon(QStyle.SP_DirClosedIcon)
-        self._icon_trash = QApplication.style().standardIcon(QStyle.SP_TrashIcon)
+        self._icon_file = QApplication.style().standardIcon(QStyle.SP_FileIcon)  # type: ignore[attr-defined]
+        self._icon_dir_open = QApplication.style().standardIcon(QStyle.SP_DirOpenIcon)  # type: ignore[attr-defined]
+        self._icon_dir_closed = QApplication.style().standardIcon(QStyle.SP_DirClosedIcon)  # type: ignore[attr-defined]
+        self._icon_trash = QApplication.style().standardIcon(QStyle.SP_TrashIcon)  # type: ignore[attr-defined]
 
-        tscat_driver.action_done_prioritised.connect(self._driver_action_done, Qt.QueuedConnection)
+        tscat_driver.action_done_prioritised.connect(self._driver_action_done, Qt.QueuedConnection)  # type: ignore[attr-defined]
 
         tscat_driver.do(GetCataloguesAction(None, False))
         tscat_driver.do(GetCataloguesAction(None, True))
@@ -53,7 +53,7 @@ class TscatRootModel(QAbstractItemModel):
         return self.index(0, 0, QModelIndex())
 
     def node_from_path(self, path: List[str], create_index_for_new_folders: bool) -> Node:
-        parent = self._root
+        parent: Node = self._root
         for folder in path:
             for child in parent.children:
                 if isinstance(child, FolderNode) and child.name == folder:
@@ -75,7 +75,7 @@ class TscatRootModel(QAbstractItemModel):
         return parent
 
     def _node_from_catalogue_path(self, c: _Catalogue, create_index_for_new_folders: bool = False) -> Node:
-        parent = self._root
+        parent: Node = self._root
         if hasattr(c, PathAttributeName) and isinstance(getattr(c, PathAttributeName), list) and \
             all(isinstance(x, str) for x in getattr(c, PathAttributeName)):
             parent = self.node_from_path(getattr(c, PathAttributeName), create_index_for_new_folders)
@@ -84,7 +84,7 @@ class TscatRootModel(QAbstractItemModel):
 
     def _rebuild_uuid_index(self) -> None:
         self._uuid_to_node.clear()
-        stack = [self._root]
+        stack: List[Node] = [self._root]
         while stack:
             node = stack.pop()
             if isinstance(node, (CatalogNode, FolderNode)):
@@ -93,7 +93,7 @@ class TscatRootModel(QAbstractItemModel):
                 stack.extend(node.children)
 
     def _node_from_uuid(self, uuid: str) -> Optional[CatalogNode]:
-        return self._uuid_to_node.get(uuid)
+        return self._uuid_to_node.get(uuid)  # type: ignore[return-value]
 
     def _index_from_node(self, node: Node) -> QModelIndex:
         if node.parent is None:
@@ -109,6 +109,7 @@ class TscatRootModel(QAbstractItemModel):
         index = self._index_from_node(node)
 
         self.beginRemoveRows(index.parent(), index.row(), index.row())
+        assert node.parent is not None
         node.parent.remove_child(node)
         self.endRemoveRows()
         self._uuid_to_node.pop(node.uuid, None)
@@ -116,6 +117,7 @@ class TscatRootModel(QAbstractItemModel):
         return node
 
     def _insert_catalogue_node_at_node_path_or_trash(self, node: CatalogNode) -> None:
+        parent_node: Node
         if node.node.is_removed():  # undelete to Trash
             parent_node = self._trash
         else:
@@ -128,16 +130,16 @@ class TscatRootModel(QAbstractItemModel):
         self._uuid_to_node[node.uuid] = node
 
     @staticmethod
-    def _is_inside_trash(index: QModelIndex) -> bool:
+    def _is_inside_trash(index: Union[QModelIndex, QPersistentModelIndex]) -> bool:
         if not index.isValid():
             return False
 
         # check if the index is inside the TrashNode
-        node = cast(Node, index.internalPointer())
-        while node is not None:
-            if isinstance(node, TrashNode):
+        current: Optional[Node] = cast(Node, index.internalPointer())
+        while current is not None:
+            if isinstance(current, TrashNode):
                 return True
-            node = node.parent
+            current = current.parent
 
         return False
 
@@ -200,8 +202,10 @@ class TscatRootModel(QAbstractItemModel):
                 node.node = c
 
                 if action.name == PathAttributeName:
-                    node = self._get_node_from_uuid_and_remove_from_tree(c.uuid)
-                    self._insert_catalogue_node_at_node_path_or_trash(node)
+                    moved_node = self._get_node_from_uuid_and_remove_from_tree(c.uuid)
+                    if moved_node is not None:
+                        self._insert_catalogue_node_at_node_path_or_trash(moved_node)
+                        node = moved_node
 
                 index = self._index_from_node(node)
                 self.dataChanged.emit(index, index)  # type: ignore
@@ -248,7 +252,7 @@ class TscatRootModel(QAbstractItemModel):
 
         return self._catalogues[uuid]
 
-    def current_path(self, index: QModelIndex) -> List[str]:
+    def current_path(self, index: Union[QModelIndex, QPersistentModelIndex]) -> List[str]:
         if not index.isValid():
             return []
 
@@ -310,7 +314,7 @@ class TscatRootModel(QAbstractItemModel):
             item = cast(NamedNode, index.internalPointer())
             if role == Qt.ItemDataRole.DisplayRole:
                 return item.name
-            elif role == Qt.DecorationRole:
+            elif role == Qt.DecorationRole:  # type: ignore[attr-defined]
                 if isinstance(item, CatalogNode):
                     return self._icon_file
                 elif isinstance(item, FolderNode):

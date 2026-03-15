@@ -108,7 +108,7 @@ class TSCatGUI(QtWidgets.QWidget):
                 self.events_view.selectionModel().selectionChanged.disconnect(  # type: ignore
                     self.__current_event_changed)
 
-                self.events_sort_model.setSourceModel(None)
+                self.events_sort_model.setSourceModel(None)  # type: ignore[arg-type]
                 for i in current_models - new_models:
                     self.event_model.removeSourceModel(i)
                 for i in new_models - current_models:
