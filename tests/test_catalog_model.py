@@ -7,6 +7,10 @@ from tscat import _Catalogue, _Event
 from tscat_gui.tscat_driver.actions import (
     AddEventsToCatalogueAction,
     CreateEntityAction,
+    MoveToTrashAction,
+    RemoveEventsFromCatalogueAction,
+    RestoreFromTrashAction,
+    SetAttributeAction,
 )
 from tscat_gui.tscat_driver.driver import tscat_driver
 from tscat_gui.model_base.constants import UUIDDataRole
@@ -162,5 +166,106 @@ class TestCatalogModelData:
         model = _get_catalog_model(cat.entity.uuid, qtbot)
 
         assert model.data(QModelIndex(), Qt.DisplayRole) is None
+
+        _unparent_driver()
+
+
+class TestCatalogModelSetAttribute:
+    def test_set_attribute_updates_model_data(self, qtbot, wait_for_action):
+        cat = _create_catalogue(wait_for_action)
+        evt = _create_event(wait_for_action, author='original_author')
+
+        model = _get_catalog_model(cat.entity.uuid, qtbot)
+
+        wait_for_action(AddEventsToCatalogueAction(
+            None, [evt.entity.uuid], cat.entity.uuid
+        ))
+        qtbot.wait(100)
+
+        wait_for_action(SetAttributeAction(None, [evt.entity.uuid], 'author', ['updated_author']))
+        qtbot.wait(100)
+
+        index = model.index(0, 2, QModelIndex())  # author is column 2
+        assert model.data(index, Qt.DisplayRole) == 'updated_author'
+
+        _unparent_driver()
+
+
+class TestCatalogModelRemoveEvents:
+    def test_remove_events_decreases_row_count(self, qtbot, wait_for_action):
+        cat = _create_catalogue(wait_for_action)
+        evt1 = _create_event(wait_for_action)
+        evt2 = _create_event(wait_for_action, start=dt.datetime(2021, 1, 1),
+                             stop=dt.datetime(2021, 1, 2))
+
+        model = _get_catalog_model(cat.entity.uuid, qtbot)
+
+        wait_for_action(AddEventsToCatalogueAction(
+            None, [evt1.entity.uuid, evt2.entity.uuid], cat.entity.uuid
+        ))
+        qtbot.wait(100)
+
+        assert model.rowCount() == 2
+
+        wait_for_action(RemoveEventsFromCatalogueAction(
+            None, [evt1.entity.uuid], cat.entity.uuid
+        ))
+        qtbot.wait(100)
+
+        assert model.rowCount() == 1
+
+        _unparent_driver()
+
+
+class TestCatalogModelTrash:
+    def test_move_to_trash_and_restore(self, qtbot, wait_for_action):
+        cat = _create_catalogue(wait_for_action)
+        evt = _create_event(wait_for_action)
+
+        model = _get_catalog_model(cat.entity.uuid, qtbot)
+
+        wait_for_action(AddEventsToCatalogueAction(
+            None, [evt.entity.uuid], cat.entity.uuid
+        ))
+        qtbot.wait(100)
+
+        assert model.rowCount() == 1
+
+        wait_for_action(MoveToTrashAction(None, [evt.entity.uuid]))
+        qtbot.wait(100)
+
+        assert model.rowCount() == 0
+
+        wait_for_action(RestoreFromTrashAction(None, [evt.entity.uuid]))
+        qtbot.wait(100)
+
+        assert model.rowCount() == 1
+
+        _unparent_driver()
+
+
+class TestCatalogModelFlags:
+    def test_valid_index_has_correct_flags(self, qtbot, wait_for_action):
+        cat = _create_catalogue(wait_for_action)
+        evt = _create_event(wait_for_action)
+
+        model = _get_catalog_model(cat.entity.uuid, qtbot)
+
+        wait_for_action(AddEventsToCatalogueAction(
+            None, [evt.entity.uuid], cat.entity.uuid
+        ))
+        qtbot.wait(100)
+
+        index = model.index(0, 0, QModelIndex())
+        expected = Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsDragEnabled
+        assert model.flags(index) == expected
+
+        _unparent_driver()
+
+    def test_invalid_index_returns_no_flags(self, qtbot, wait_for_action):
+        cat = _create_catalogue(wait_for_action)
+        model = _get_catalog_model(cat.entity.uuid, qtbot)
+
+        assert model.flags(QModelIndex()) == Qt.NoItemFlags
 
         _unparent_driver()
