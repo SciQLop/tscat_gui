@@ -104,7 +104,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
                 current_models = set(self.event_model.sourceModels())
                 from .tscat_driver.model import tscat_model
-                new_models = set(map(tscat_model.catalog, uuids))
+                new_models = {m for m in map(tscat_model.catalog, uuids) if m is not None}
 
                 # Detach sort proxy during swaps so only one reset reaches the view
                 self.events_view.selectionModel().selectionChanged.disconnect(  # type: ignore
