@@ -141,7 +141,8 @@ def _reset_tscat_backend(gui) -> None:
     gui.state.undo_stack().clear()
 
     for cat in tscat.get_catalogues() + tscat.get_catalogues(removed_items=True):
-        tscat.discard(cat, permanently=True)
+        cat.remove(permanently=True)
+    tscat.save()
 
     tscat_driver._entity_cache.clear()
 
