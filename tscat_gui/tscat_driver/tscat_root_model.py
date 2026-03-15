@@ -31,15 +31,20 @@ class TscatRootModel(QAbstractItemModel):
 
         self._expanded_nodes: Set[int] = set()  # id(node) for O(1) lookup without QPersistentModelIndex
 
-        self._icon_file = QApplication.style().standardIcon(QStyle.SP_FileIcon)  # type: ignore[attr-defined]
-        self._icon_dir_open = QApplication.style().standardIcon(QStyle.SP_DirOpenIcon)  # type: ignore[attr-defined]
-        self._icon_dir_closed = QApplication.style().standardIcon(QStyle.SP_DirClosedIcon)  # type: ignore[attr-defined]
-        self._icon_trash = QApplication.style().standardIcon(QStyle.SP_TrashIcon)  # type: ignore[attr-defined]
+        self._icons_initialized = False
 
         tscat_driver.action_done_prioritised.connect(self._driver_action_done, Qt.QueuedConnection)  # type: ignore[attr-defined]
 
         tscat_driver.do(GetCataloguesAction(None, False))
         tscat_driver.do(GetCataloguesAction(None, True))
+
+    def _ensure_icons(self) -> None:
+        if not self._icons_initialized:
+            self._icon_file = QApplication.style().standardIcon(QStyle.SP_FileIcon)  # type: ignore[attr-defined]
+            self._icon_dir_open = QApplication.style().standardIcon(QStyle.SP_DirOpenIcon)  # type: ignore[attr-defined]
+            self._icon_dir_closed = QApplication.style().standardIcon(QStyle.SP_DirClosedIcon)  # type: ignore[attr-defined]
+            self._icon_trash = QApplication.style().standardIcon(QStyle.SP_TrashIcon)  # type: ignore[attr-defined]
+            self._icons_initialized = True
 
     def collapsed(self, index: QModelIndex) -> None:
         self._expanded_nodes.discard(id(index.internalPointer()))
@@ -166,6 +171,7 @@ class TscatRootModel(QAbstractItemModel):
                 for child in new_children:
                     self._uuid_to_node[child.uuid] = child
         else:
+            self._expanded_nodes.clear()
             self.beginResetModel()
             self._root.set_children([self._trash])
 
@@ -315,6 +321,7 @@ class TscatRootModel(QAbstractItemModel):
             if role == Qt.ItemDataRole.DisplayRole:
                 return item.name
             elif role == Qt.DecorationRole:  # type: ignore[attr-defined]
+                self._ensure_icons()
                 if isinstance(item, CatalogNode):
                     return self._icon_file
                 elif isinstance(item, FolderNode):
