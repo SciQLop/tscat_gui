@@ -78,8 +78,8 @@ class TscatDriver(QObject):
         self.action_done_prioritised.emit(action)
         self.action_done.emit(action)
 
-    def entity_from_uuid(self, uuid: str) -> Union[_Event, _Catalogue]:
-        return self._entity_cache[uuid]
+    def entity_from_uuid(self, uuid: str) -> Optional[Union[_Event, _Catalogue]]:
+        return self._entity_cache.get(uuid)
 
     def event_from_uuid(self, uuid: str) -> _Event:
         entity = self.entity_from_uuid(uuid)

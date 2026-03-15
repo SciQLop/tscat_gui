@@ -37,7 +37,7 @@ class _Model(QObject):
     @staticmethod
     def entities_from_uuids(uuids: Sequence[str]) -> List[Union[_Catalogue, _Event]]:
         from .driver import tscat_driver
-        return list(map(tscat_driver.entity_from_uuid, uuids))
+        return [e for e in map(tscat_driver.entity_from_uuid, uuids) if e is not None]
 
 
 tscat_model = _Model()
