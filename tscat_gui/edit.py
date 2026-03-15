@@ -319,7 +319,7 @@ class CustomAttributesGroupBox(AttributesGroupBox):
         self.setStyleSheet("QGroupBox { font-weight: bold; }")
 
     def setup(self, entities: List[Union[tscat._Catalogue, tscat._Event]]) -> None:
-        if len(entities) > 1:
+        if len(entities) != 1:
             self.hide()
             return
 

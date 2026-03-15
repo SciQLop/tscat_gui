@@ -253,14 +253,14 @@ class TscatRootModel(QAbstractItemModel):
             for node in list(map(CatalogNode, action.catalogues)):
                 self._insert_catalogue_node_at_node_path_or_trash(node)
 
-    def catalog(self, uuid: str) -> CatalogModel:
+    def catalog(self, uuid: str) -> Optional[CatalogModel]:
         if uuid not in self._catalogues:
             node = self._uuid_to_node.get(uuid)
             if isinstance(node, CatalogNode):
                 self._catalogues[uuid] = CatalogModel(node)
                 tscat_driver.do(GetCatalogueAction(None, removed_items=False, uuid=uuid))
 
-        return self._catalogues[uuid]
+        return self._catalogues.get(uuid)
 
     def current_path(self, index: Union[QModelIndex, QPersistentModelIndex]) -> List[str]:
         if not index.isValid():

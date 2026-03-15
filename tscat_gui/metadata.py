@@ -7,7 +7,7 @@ from .model_base.constants import EntityRole
 
 def __total_event_count(catalogues: List[tscat._Catalogue]) -> str:
     from .tscat_driver.model import tscat_model
-    return str(sum(tscat_model.catalog(c.uuid).rowCount() for c in catalogues))
+    return str(sum(m.rowCount() for c in catalogues if (m := tscat_model.catalog(c.uuid)) is not None))
 
 
 def __global_start_stop_range(catalogues: List[tscat._Catalogue]) -> str:
@@ -15,6 +15,8 @@ def __global_start_stop_range(catalogues: List[tscat._Catalogue]) -> str:
     min_start, max_stop = None, None
     for c in catalogues:
         model = tscat_model.catalog(c.uuid)
+        if model is None:
+            continue
         for i in range(model.rowCount()):
             event = cast(tscat._Event, model.data(model.index(i, 0), EntityRole))
 
