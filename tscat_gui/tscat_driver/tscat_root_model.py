@@ -97,8 +97,8 @@ class TscatRootModel(QAbstractItemModel):
             if not isinstance(node, CatalogNode):
                 stack.extend(node.children)
 
-    def _node_from_uuid(self, uuid: str) -> Optional[CatalogNode]:
-        return self._uuid_to_node.get(uuid)  # type: ignore[return-value]
+    def _node_from_uuid(self, uuid: str) -> Optional[Node]:
+        return self._uuid_to_node.get(uuid)
 
     def _index_from_node(self, node: Node) -> QModelIndex:
         if node.parent is None:
@@ -106,7 +106,7 @@ class TscatRootModel(QAbstractItemModel):
 
         return self.index(node.row, 0, self._index_from_node(node.parent))
 
-    def _get_node_from_uuid_and_remove_from_tree(self, uuid: str) -> Optional[CatalogNode]:
+    def _get_node_from_uuid_and_remove_from_tree(self, uuid: str) -> Optional[Node]:
         node = self._node_from_uuid(uuid)
         if node is None:
             return None
@@ -197,6 +197,7 @@ class TscatRootModel(QAbstractItemModel):
             if node is None:
                 continue
 
+            assert isinstance(node, CatalogNode)
             node.node = entity
 
             self._insert_catalogue_node_at_node_path_or_trash(node)
@@ -204,12 +205,13 @@ class TscatRootModel(QAbstractItemModel):
     def _on_set_attribute(self, action: Union[SetAttributeAction, DeleteAttributeAction]) -> None:
         for c in filter(lambda x: isinstance(x, _Catalogue), action.entities):
             node = self._node_from_uuid(c.uuid)
-            if node is not None:
+            if node is not None and isinstance(node, CatalogNode):
                 node.node = c
 
                 if action.name == PathAttributeName:
                     moved_node = self._get_node_from_uuid_and_remove_from_tree(c.uuid)
                     if moved_node is not None:
+                        assert isinstance(moved_node, CatalogNode)
                         self._insert_catalogue_node_at_node_path_or_trash(moved_node)
                         node = moved_node
 
