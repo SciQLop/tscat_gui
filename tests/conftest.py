@@ -7,7 +7,9 @@ that immediately query the database on import.
 We use a temp-file SQLite (not in-memory) because the driver's worker thread
 needs cross-thread access to the same database.
 """
+import atexit
 import os
+import shutil
 import sys
 import tempfile
 
@@ -20,6 +22,7 @@ _app = QApplication.instance() or QApplication(sys.argv)
 # and doesn't work with the QThread-based driver.
 _db_dir = tempfile.mkdtemp()
 _db_path = os.path.join(_db_dir, 'test.sqlite')
+atexit.register(shutil.rmtree, _db_dir, True)
 
 # Patch _copy_to_tmp to just return our temp path (no source file to copy)
 import tscat.orm_sqlalchemy as _orm  # noqa: E402

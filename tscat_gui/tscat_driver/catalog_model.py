@@ -76,11 +76,13 @@ class CatalogModel(QAbstractTableModel):
                     else:
                         nodes.append(event_node)
 
-            self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount() + len(nodes) - 1)
-            self._root.append_children(nodes)
-            self.endInsertRows()
+            if nodes:
+                self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount() + len(nodes) - 1)
+                self._root.append_children(nodes)
+                self.endInsertRows()
 
-            self._trash.append_children(removed_nodes)
+            if removed_nodes:
+                self._trash.append_children(removed_nodes)
 
         elif isinstance(action, RemoveEventsFromCatalogueAction):
             if action.catalogue_uuid == self._root.uuid:
