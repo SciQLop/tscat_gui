@@ -97,7 +97,7 @@ class _Comparison(_PredicateWidget):
             predicate = Comparison('==', Field('author'), '')
             negate = False
 
-        if type(predicate) == Comparison:
+        if type(predicate) is Comparison:
             if negate:
                 predicate._op = _Comparison.OP_LABELS_NEGATED[
                     _Comparison.OP_LABELS.index(predicate._op)]  # type: ignore
@@ -553,23 +553,23 @@ class _AddPredicateWidget(QtWidgets.QWidget):
     def __init__(self, parent: QtWidgets.QWidget):
         super().__init__(parent)
 
-        l = QtWidgets.QHBoxLayout()
-        l.setContentsMargins(0, 0, 0, 0)
+        layout = QtWidgets.QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
 
         self.type_combobox = QtWidgets.QComboBox()
         self.type_combobox.addItem('Condition', _Condition)
         self.type_combobox.addItem('Logical Combination', _LogicalCombination)
 
-        l.addWidget(self.type_combobox)
+        layout.addWidget(self.type_combobox)
 
         button = QtWidgets.QToolButton()
         button.setText('Add')
         button.clicked.connect(lambda: self.new.emit(self))  # type: ignore
-        l.addWidget(button)
+        layout.addWidget(button)
 
-        l.addStretch()
+        layout.addStretch()
 
-        self.setLayout(l)
+        self.setLayout(layout)
 
     def selected_type(self):
         return self.type_combobox.itemData(self.type_combobox.currentIndex())
