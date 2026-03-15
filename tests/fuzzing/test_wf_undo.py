@@ -23,9 +23,9 @@ def test_create_catalogue_undo_redo(story_runner):
 
 
 def test_create_event_and_undo(story_runner):
-    cat_uuid = story_runner.run(create_catalogue)
+    story_runner.run(create_catalogue)
 
-    story_runner.run(select_catalogue, uuid=cat_uuid)
+    story_runner.run(select_catalogue, idx=0)
 
     story_runner.run(create_event)
     assert visible_event_count(story_runner.gui) == 1

@@ -18,7 +18,10 @@ class Step:
         fmt_kwargs = {**self.args}
         if self.result is not None:
             fmt_kwargs["result"] = self.result
-        return self.narrate_template.format(**fmt_kwargs)
+        try:
+            return self.narrate_template.format(**fmt_kwargs)
+        except KeyError:
+            return f"{self.action_name}({self.args})"
 
     def as_code(self) -> str:
         args_str = ", ".join(f"{k}={v!r}" for k, v in self.args.items())

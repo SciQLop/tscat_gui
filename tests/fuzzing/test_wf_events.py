@@ -5,7 +5,7 @@ from tests.fuzzing.event_actions import create_event
 def test_create_catalogue_then_event(story_runner):
     cat_uuid = story_runner.run(create_catalogue)
 
-    story_runner.run(select_catalogue, uuid=cat_uuid)
+    story_runner.run(select_catalogue, idx=0)
     ev_uuid = story_runner.run(create_event)
 
     assert ev_uuid is not None

@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from hypothesis.stateful import (
-    Bundle,
     RuleBasedStateMachine,
     rule,
     precondition,
@@ -17,6 +16,14 @@ from PySide6.QtWidgets import QApplication
 
 from tests.fuzzing.model import AppModel
 from tests.fuzzing.story import Step, Story
+
+
+class _Skip:
+    """Sentinel returned by actions to skip model_update and verify."""
+    pass
+
+
+SKIP = _Skip()
 
 
 @dataclass
@@ -78,6 +85,14 @@ def _bind_kwargs(fn: Callable, kwargs: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in kwargs.items() if k in params}
 
 
+def _defaults_for(fn: Callable) -> dict[str, Any]:
+    defaults = {}
+    for name, param in inspect.signature(fn).parameters.items():
+        if param.default is not inspect.Parameter.empty:
+            defaults[name] = param.default
+    return defaults
+
+
 def run_action(fn: Callable, gui, model: AppModel, story: Story, **kwargs) -> Any:
     meta: ActionMeta = fn._ui_meta
 
@@ -98,12 +113,18 @@ def run_action(fn: Callable, gui, model: AppModel, story: Story, **kwargs) -> An
         _dump_story(story)
         raise
 
+    if isinstance(result, _Skip):
+        if not meta.manages_own_snapshots:
+            model.pop_snapshot()
+        return None
+
+    effective_kwargs = {**_defaults_for(fn), **kwargs}
     if isinstance(result, dict):
-        cb_kwargs = {**kwargs, **result, "result": result}
+        cb_kwargs = {**effective_kwargs, **result, "result": result}
         narrate_args = {k: str(v) for k, v in result.items()}
     else:
-        cb_kwargs = {**kwargs, "result": result}
-        narrate_args = {k: str(v) for k, v in kwargs.items()}
+        cb_kwargs = {**effective_kwargs, "result": result}
+        narrate_args = {k: str(v) for k, v in effective_kwargs.items()}
         if result is not None:
             narrate_args["result"] = str(result)
 
@@ -137,6 +158,10 @@ def _reset_tscat_backend(gui) -> None:
     from tscat_gui.tscat_driver.driver import tscat_driver
     from tscat_gui.tscat_driver.actions import GetCataloguesAction
     import tscat
+
+    gui.catalogues_view.selectionModel().clearSelection()
+    gui.events_view.selectionModel().clearSelection()
+    settle(200)
 
     gui.state.undo_stack().clear()
 
@@ -186,15 +211,7 @@ class ActionRegistry:
         stateful_step_count: int = 15,
     ) -> type:
         registry = self
-        bundles_map: dict[str, Bundle] = {}
-
-        for action_fn in registry.actions:
-            meta: ActionMeta = action_fn._ui_meta
-            if meta.target and meta.target not in bundles_map:
-                bundles_map[meta.target] = Bundle(meta.target)
-
         class_dict: dict[str, Any] = {}
-        class_dict.update(bundles_map)
 
         @initialize()
         def _init_model(self):
@@ -221,17 +238,12 @@ class ActionRegistry:
             method_name = action_fn.__name__
 
             rule_kwargs: dict[str, Any] = {}
-            if meta.target:
-                rule_kwargs["target"] = bundles_map[meta.target]
-
-            for param_name, bundle_name in (meta.bundles or {}).items():
-                rule_kwargs[param_name] = bundles_map[bundle_name]
             for param_name, strategy in (meta.strategies or {}).items():
                 rule_kwargs[param_name] = strategy
 
             def make_rule_method(fn, fn_meta):
                 def rule_method(self, **kwargs):
-                    return run_action(
+                    run_action(
                         fn,
                         self.__class__.gui,
                         self._model,
