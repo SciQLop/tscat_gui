@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from tests.fuzzing.actions import ActionRegistry, settle, ui_action
+import datetime as dt
+
+from hypothesis import strategies as st
+
+from tests.fuzzing.actions import SKIP, ActionRegistry, settle, ui_action
 from tests.fuzzing.introspect import entity_attribute
 from tests.fuzzing.model import AppModel
 from tscat_gui import TSCatGUI
@@ -129,3 +133,65 @@ def delete_attribute(
 ):
     gui.state.push_undo_command(DeleteAttribute, attr_name)
     settle(500)
+
+
+@registry.register
+@ui_action(
+    narrate="Edit catalogue name (idx={idx}) -> '{new_name}'",
+    strategies={
+        "idx": st.integers(min_value=0, max_value=999),
+        "new_name": st.text(
+            alphabet=st.characters(whitelist_categories=("L", "N", "P", "Z")),
+            min_size=1,
+            max_size=30,
+        ),
+    },
+    model_update=lambda model, uuid, new_name: None,
+    verify=lambda gui, model, uuid, new_name: entity_attribute(gui, uuid, "name") == new_name,
+    precondition=lambda model: len([c for c in model.catalogues if c not in model.trashed]) > 0,
+    settle_timeout_ms=500,
+)
+def edit_catalogue_name(gui: TSCatGUI, model: AppModel, idx: int, new_name: str):
+    active = [c for c in model.catalogues if c not in model.trashed]
+    if not active:
+        return SKIP
+    uuid = active[idx % len(active)]
+    gui.state.updated("active_select", __import__("tscat")._Catalogue, [uuid])
+    settle(100)
+    gui.state.push_undo_command(SetAttributeValue, "name", new_name)
+    settle(500)
+    return {"uuid": uuid, "new_name": new_name}
+
+
+@registry.register
+@ui_action(
+    narrate="Edit event dates (idx={idx})",
+    strategies={
+        "idx": st.integers(min_value=0, max_value=999),
+        "offset_hours": st.integers(min_value=1, max_value=720),
+    },
+    model_update=lambda model, uuid, new_start, new_stop: None,
+    verify=lambda gui, model, uuid, new_start, new_stop: (
+        entity_attribute(gui, uuid, "start") == new_start
+        and entity_attribute(gui, uuid, "stop") == new_stop
+    ),
+    precondition=lambda model: model.has_events,
+    settle_timeout_ms=500,
+)
+def edit_event_dates(gui: TSCatGUI, model: AppModel, idx: int, offset_hours: int):
+    import tscat
+    all_events = [ev for evts in model.events.values() for ev in evts if ev not in model.trashed]
+    if not all_events:
+        return SKIP
+    uuid = all_events[idx % len(all_events)]
+
+    new_start = dt.datetime(2020, 1, 1) + dt.timedelta(hours=offset_hours)
+    new_stop = new_start + dt.timedelta(hours=1)
+
+    gui.state.updated("active_select", tscat._Event, [uuid])
+    settle(100)
+    gui.state.push_undo_command(SetAttributeValue, "start", new_start)
+    settle(300)
+    gui.state.push_undo_command(SetAttributeValue, "stop", new_stop)
+    settle(500)
+    return {"uuid": uuid, "new_start": new_start, "new_stop": new_stop}
