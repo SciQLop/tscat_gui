@@ -34,8 +34,8 @@ class TscatDriver(QObject):
 
         self._worker = _TscatDriverWorker()
 
-        self._do_action.connect(self._worker.do_action, Qt.QueuedConnection)
-        self._worker.action_done.connect(self._worker_action_done, Qt.QueuedConnection)
+        self._do_action.connect(self._worker.do_action, Qt.QueuedConnection)  # type: ignore[attr-defined]
+        self._worker.action_done.connect(self._worker_action_done, Qt.QueuedConnection)  # type: ignore[attr-defined]
 
         self._entity_cache: Dict[str, Union[_Event, _Catalogue]] = {}
         self.destroyed.connect(self.stop)  # type: ignore

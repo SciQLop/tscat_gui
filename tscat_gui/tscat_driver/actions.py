@@ -24,9 +24,9 @@ class Action(ABC):
         if len(entities) == 0:
             entities = get_catalogues(UUID(uuid), removed_items=True)
             if len(entities) == 0:
-                entities = get_events(UUID(uuid))
+                entities = get_events(UUID(uuid))  # type: ignore[assignment]
                 if len(entities) == 0:
-                    entities = get_events(UUID(uuid), removed_items=True)
+                    entities = get_events(UUID(uuid), removed_items=True)  # type: ignore[assignment]
 
         assert len(entities) == 1
 
@@ -34,9 +34,9 @@ class Action(ABC):
 
     @staticmethod
     def _event(uuid: str) -> _Event:
-        entities: Sequence[_Event] = get_events(UUID(uuid))
+        entities: Sequence[_Event] = get_events(UUID(uuid))  # type: ignore[assignment]
         if len(entities) == 0:
-            entities = get_events(UUID(uuid), removed_items=True)
+            entities = get_events(UUID(uuid), removed_items=True)  # type: ignore[assignment]
 
         assert len(entities) == 1
 
@@ -67,7 +67,7 @@ class GetCatalogueAction(Action):
         catalogues = get_catalogues(UUID(self.uuid))
         if len(catalogues) == 0:
             catalogues = get_catalogues(UUID(self.uuid), removed_items=True)
-        self.events, self.query_info = get_events(catalogues[0], removed_items=self.removed_items)
+        self.events, self.query_info = get_events(catalogues[0], removed_items=self.removed_items)  # type: ignore[assignment, misc]
 
 
 @dataclass
@@ -104,7 +104,7 @@ class AddEventsToCatalogueAction(Action):
         assert isinstance(catalogue, _Catalogue)
 
         # clean uuids of already existing events (assigned, not filtered)
-        existing_events_uuids = set(event.uuid for event in get_events(catalogue, assigned_only=True)[0])
+        existing_events_uuids = set(event.uuid for event in get_events(catalogue, assigned_only=True)[0])  # type: ignore[index, union-attr]
         self.uuids = list(set(self.uuids) - existing_events_uuids)
         add_events_to_catalogue(catalogue, list(map(self._event, self.uuids)))
 
@@ -198,14 +198,14 @@ class CanonicalizeImportAction(Action):
 
 
 def CanonicalizeJSONImportAction(*args, **kwargs) -> CanonicalizeImportAction:
-    return CanonicalizeImportAction(*args, **kwargs,
+    return CanonicalizeImportAction(*args, **kwargs,  # type: ignore[misc]
                                     importer=lambda filename: canonicalize_json_import(
                                         Path(filename).read_text()))
 
 
 def CanonicalizeVOTableImportAction(*args, **kwargs) -> CanonicalizeImportAction:
     from astropy.io.votable import parse
-    return CanonicalizeImportAction(*args, **kwargs,
+    return CanonicalizeImportAction(*args, **kwargs,  # type: ignore[misc]
                                     importer=lambda fname: canonicalize_votable_import(
                                         parse(fname),
                                         table_name=os.path.basename(fname).split('.')[0]))
@@ -281,7 +281,7 @@ class DeletePermanentlyAction(Action):
     def action(self) -> None:
         for entity in map(self._entity, self.uuids):
             if isinstance(entity, _Catalogue):
-                linked_uuids = [e.uuid for e in get_events(entity, assigned_only=True)[0]]
+                linked_uuids = [e.uuid for e in get_events(entity, assigned_only=True)[0]]  # type: ignore[index, union-attr]
             elif isinstance(entity, _Event):
                 linked_uuids = [e.uuid for e in get_catalogues(entity)]
 
@@ -315,7 +315,7 @@ class RestorePermanentlyDeletedAction(Action):
             if e.type == _Catalogue:
                 linked_entities = list(map(self._event, e.linked_uuids))
             else:
-                linked_entities = list(map(self._entity, e.linked_uuids))
+                linked_entities = list(map(self._entity, e.linked_uuids))  # type: ignore[arg-type]
 
             if isinstance(entity, _Catalogue):
                 assert all(isinstance(x, _Event) for x in linked_entities)

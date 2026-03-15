@@ -1,6 +1,6 @@
 import abc
 import datetime as dt
-import os
+import getpass
 from copy import deepcopy
 from typing import Dict, List, Optional, Tuple, Type, Union
 
@@ -170,7 +170,7 @@ class NewCatalogue(_EntityBased):
         tscat_model.do(CreateEntityAction(creation_callback, tscat._Catalogue,
                                           {
                                               'name': "New Catalogue",
-                                              'author': os.getlogin(),
+                                              'author': getpass.getuser(),
                                               'uuid': self.uuid,
                                               PathAttributeName: self.state.current_catalogue_path()
                                           }))
@@ -209,7 +209,7 @@ class NewEvent(_EntityBased):
                                           {
                                               'start': dt.datetime.now(),
                                               'stop': dt.datetime.now(),
-                                              'author': os.getlogin(),
+                                              'author': getpass.getuser(),
                                               'uuid': self.uuid
                                           }))
 

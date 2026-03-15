@@ -23,10 +23,10 @@ _db_path = os.path.join(_db_dir, 'test.sqlite')
 
 # Patch _copy_to_tmp to just return our temp path (no source file to copy)
 import tscat.orm_sqlalchemy as _orm  # noqa: E402
-_orm.Backend._copy_to_tmp = lambda self, source: _db_path
+_orm.Backend._copy_to_tmp = lambda self, source: _db_path  # type: ignore[method-assign, assignment]
 
 import tscat.base as _tscat_base  # noqa: E402
-_tscat_base._backend = _orm.Backend(testing=_db_path)
+_tscat_base._backend = _orm.Backend(testing=_db_path)  # type: ignore[assignment]
 
 import pytest  # noqa: E402
 from tscat_gui.tscat_driver.driver import tscat_driver  # noqa: E402
