@@ -39,6 +39,18 @@ class AppModel:
         return len(self._redo_stack) > 0
 
     @property
+    def has_selection(self) -> bool:
+        return len(self.selected_catalogues) > 0 or len(self.selected_events) > 0
+
+    @property
+    def selected_have_attribute(self) -> bool:
+        selected = self.selected_catalogues + self.selected_events
+        return any(
+            len(self.custom_attributes.get(uuid, {})) > 0
+            for uuid in selected
+        )
+
+    @property
     def active_events(self) -> list[str]:
         result = []
         for cat in self.selected_catalogues:

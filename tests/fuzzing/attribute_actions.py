@@ -54,9 +54,7 @@ def add_custom_attribute(
         entity_attribute(gui, uuid, attr_name) == attr_value
         for uuid in model.selected_catalogues + model.selected_events
     ),
-    precondition=lambda model: (
-        len(model.selected_catalogues) > 0 or len(model.selected_events) > 0
-    ),
+    precondition=lambda model: model.selected_have_attribute,
     settle_timeout_ms=500,
 )
 def set_attribute(
@@ -89,9 +87,7 @@ def set_attribute(
         entity_attribute(gui, uuid, new_name) is not None
         for uuid in model.selected_catalogues + model.selected_events
     ),
-    precondition=lambda model: (
-        len(model.selected_catalogues) > 0 or len(model.selected_events) > 0
-    ),
+    precondition=lambda model: model.selected_have_attribute,
     settle_timeout_ms=500,
 )
 def rename_attribute(
@@ -123,9 +119,7 @@ def rename_attribute(
         entity_attribute(gui, uuid, attr_name) is None
         for uuid in model.selected_catalogues + model.selected_events
     ),
-    precondition=lambda model: (
-        len(model.selected_catalogues) > 0 or len(model.selected_events) > 0
-    ),
+    precondition=lambda model: model.selected_have_attribute,
     settle_timeout_ms=500,
 )
 def delete_attribute(
