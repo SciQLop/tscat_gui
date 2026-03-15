@@ -94,7 +94,7 @@ def _defaults_for(fn: Callable) -> dict[str, Any]:
 
 
 def run_action(fn: Callable, gui, model: AppModel, story: Story, **kwargs) -> Any:
-    meta: ActionMeta = fn._ui_meta
+    meta: ActionMeta = fn._ui_meta  # type: ignore[attr-defined]
 
     if not meta.manages_own_snapshots:
         model.push_snapshot()
@@ -234,7 +234,7 @@ class ActionRegistry:
         class_dict["teardown"] = teardown
 
         for action_fn in registry.actions:
-            meta: ActionMeta = action_fn._ui_meta
+            meta: ActionMeta = action_fn._ui_meta  # type: ignore[attr-defined]
             method_name = action_fn.__name__
 
             rule_kwargs: dict[str, Any] = {}
@@ -259,7 +259,7 @@ class ActionRegistry:
             if meta.precondition:
                 user_precond = meta.precondition
                 method = precondition(
-                    lambda self, _p=user_precond: _p(self._model)
+                    lambda self, _p=user_precond: _p(self._model)  # type: ignore[misc]
                 )(method)
 
             method = rule(**rule_kwargs)(method)
@@ -267,7 +267,7 @@ class ActionRegistry:
 
         sm_class = type(name, (RuleBasedStateMachine,), class_dict)
 
-        sm_class.TestCase.settings = hypothesis_settings(
+        sm_class.TestCase.settings = hypothesis_settings(  # type: ignore[attr-defined]
             max_examples=max_examples,
             stateful_step_count=stateful_step_count,
             deadline=None,
