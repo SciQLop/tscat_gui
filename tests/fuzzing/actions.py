@@ -164,6 +164,7 @@ def _reset_tscat_backend(gui) -> None:
     settle(200)
 
     gui.state.undo_stack().clear()
+    gui.state.updated('active_select', tscat._Catalogue, [])
 
     for cat in tscat.get_catalogues() + tscat.get_catalogues(removed_items=True):
         cat.remove(permanently=True)
@@ -215,6 +216,7 @@ class ActionRegistry:
 
         @initialize()
         def _init_model(self):
+            _reset_tscat_backend(self.__class__.gui)
             self._model = AppModel()
             self._story = Story()
 
@@ -229,7 +231,7 @@ class ActionRegistry:
                 _reset_tscat_backend(self.__class__.gui)
             except Exception:
                 pass
-            settle()
+            settle(500)
 
         class_dict["teardown"] = teardown
 
@@ -271,6 +273,7 @@ class ActionRegistry:
             max_examples=max_examples,
             stateful_step_count=stateful_step_count,
             deadline=None,
+            database=None,
         )
 
         return sm_class

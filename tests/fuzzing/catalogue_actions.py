@@ -76,14 +76,16 @@ def select_catalogue(gui: TSCatGUI, model: AppModel, idx: int):
     return {"uuid": uuid}
 
 
+def _model_trash_catalogue(model: AppModel, uuid: str) -> None:
+    model.trashed.add(uuid)
+    model.select_catalogue([uuid])
+
+
 @registry.register
 @ui_action(
     narrate="Trash catalogue (idx={idx})",
     strategies={"idx": st.integers(min_value=0, max_value=999)},
-    model_update=lambda model, uuid: (
-        model.trashed.add(uuid),
-        model.selected_catalogues.remove(uuid) if uuid in model.selected_catalogues else None,
-    ),
+    model_update=_model_trash_catalogue,
     verify=_verify_trashed,
     precondition=lambda model: model.has_catalogues,
     settle_timeout_ms=500,
@@ -121,15 +123,18 @@ def restore_catalogue(gui: TSCatGUI, model: AppModel, idx: int):
     return {"uuid": uuid}
 
 
+def _model_delete_permanently(model: AppModel, uuid: str) -> None:
+    model.catalogues.remove(uuid)
+    model.trashed.discard(uuid)
+    model.events.pop(uuid, None)
+    model.select_catalogue([])
+
+
 @registry.register
 @ui_action(
     narrate="Delete catalogue permanently (idx={idx})",
     strategies={"idx": st.integers(min_value=0, max_value=999)},
-    model_update=lambda model, uuid: (
-        model.catalogues.remove(uuid),
-        model.trashed.discard(uuid),
-        model.selected_catalogues.remove(uuid) if uuid in model.selected_catalogues else None,
-    ),
+    model_update=_model_delete_permanently,
     verify=_verify_catalogues,
     precondition=lambda model: model.has_trashed,
     settle_timeout_ms=500,
