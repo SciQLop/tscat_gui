@@ -501,6 +501,7 @@ class TSCatGUI(QtWidgets.QWidget):
         layout.addWidget(splitter)
         self.setLayout(layout)
 
+    @QtCore.Slot(Action)
     def _external_signal_emission_changed(self, action: Action) -> None:
         if isinstance(action, (SetAttributeAction, DeleteAttributeAction)) and action.entities:
             if isinstance(action.entities[0], _Catalogue):

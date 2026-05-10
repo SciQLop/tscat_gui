@@ -25,8 +25,8 @@ class AppState(QtCore.QObject):
         super().__init__()
         self._select_state = SelectState([], tscat._Catalogue, [], [])
 
-        self._undo_stack = QtGui.QUndoStack()
-        self._undo_stack.cleanChanged.connect(lambda x: self.undo_stack_clean_changed.emit(x))  # type: ignore
+        self._undo_stack = QtGui.QUndoStack(self)
+        self._undo_stack.cleanChanged.connect(self.undo_stack_clean_changed)  # type: ignore
 
     def push_undo_command(self, cls, *args) -> None:
         self._undo_stack.push(cls(self, *args))

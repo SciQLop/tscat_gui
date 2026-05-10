@@ -1561,23 +1561,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/46/2c/9664130905f03db57961b8980b05cab624afd114bf2be2576628a9f22da4/sqlalchemy-2.0.48-py3-none-any.whl", hash = "sha256:a66fe406437dd65cacd96a72689a3aaaecaebbcd62d81c5ac1c0fdbeac835096", size = 1940202, upload-time = "2026-03-02T15:52:43.285Z" },
 ]
 
-[package.optional-dependencies]
-mypy = [
-    { name = "mypy" },
-]
-
-[[package]]
-name = "sqlalchemy-utils"
-version = "0.42.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "sqlalchemy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/0f/7d/eb9565b6a49426552a5bf5c57e7c239c506dc0e4e5315aec6d1e8241dc7c/sqlalchemy_utils-0.42.1.tar.gz", hash = "sha256:881f9cd9e5044dc8f827bccb0425ce2e55490ce44fc0bb848c55cc8ee44cc02e", size = 130789, upload-time = "2025-12-13T03:14:13.591Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7c/25/7400c18c3ee97914cc99c90007795c00a4ec5b60c853b49db7ba24d11179/sqlalchemy_utils-0.42.1-py3-none-any.whl", hash = "sha256:243cfe1b3a1dae3c74118ae633f1d1e0ed8c787387bc33e556e37c990594ac80", size = 91761, upload-time = "2025-12-13T03:14:15.014Z" },
-]
-
 [[package]]
 name = "tomli"
 version = "2.4.0"
@@ -1634,7 +1617,7 @@ wheels = [
 
 [[package]]
 name = "tscat"
-version = "0.4.4"
+version = "0.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "alembic" },
@@ -1642,13 +1625,12 @@ dependencies = [
     { name = "astropy", version = "6.1.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "astropy", version = "7.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "orjson" },
-    { name = "sqlalchemy", extra = ["mypy"] },
-    { name = "sqlalchemy-utils" },
+    { name = "sqlalchemy" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2a/02/1563ea4248397d2195aed1aa52a51867906e3baa143e38e6f6aa7e45cd39/tscat-0.4.4.tar.gz", hash = "sha256:56b6d21413efa074db8adc845eed8d5f47987bd259cdaffd5201a8a00f0ae6d2", size = 22385, upload-time = "2025-11-06T16:41:22.06Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bd/e0/6629b9cee90954670bc093dc89922f93cb7c3f6b4776d3755c4fadf3e0f8/tscat-0.5.1.tar.gz", hash = "sha256:1f7fb6750c05534f042542c754f5a6d5e92b38b184891e7c37952c593e9e8b5e", size = 58398, upload-time = "2026-05-10T21:19:27.664Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d4/a8/5ec07323126ddc18c710bcc592aa27eabeef071193d9afc86f787e2598fb/tscat-0.4.4-py3-none-any.whl", hash = "sha256:f67b2ba2b046d331d53f22ac634a1fa59bb3b9d0d886a40a70cfb47f6e386a54", size = 25967, upload-time = "2025-11-06T16:41:21.203Z" },
+    { url = "https://files.pythonhosted.org/packages/ae/3c/60c1b465f3cc4422284b01ce3c49a5a550aea96b896eca4bb9c1652b75c7/tscat-0.5.1-py3-none-any.whl", hash = "sha256:5604b084c3f59a3fefbb20683403b87f03de42b635c95179f5fae31cce012c0e", size = 31224, upload-time = "2026-05-10T21:19:28.873Z" },
 ]
 
 [[package]]
@@ -1701,7 +1683,7 @@ requires-dist = [
     { name = "sphinx", marker = "extra == 'doc'" },
     { name = "sphinx-autodoc-typehints", marker = "extra == 'doc'" },
     { name = "sphinx-rtd-theme", marker = "extra == 'doc'" },
-    { name = "tscat", specifier = "==0.4.*" },
+    { name = "tscat", specifier = ">=0.5.1,<0.6" },
 ]
 provides-extras = ["test", "doc"]
 
