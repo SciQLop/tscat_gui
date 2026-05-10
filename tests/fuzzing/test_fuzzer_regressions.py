@@ -37,3 +37,36 @@ def test_new_event_redo_with_empty_selected_catalogues(story_runner):
     # _redo should not crash — it should gracefully skip
     cmd._redo()
     settle(200)
+
+
+def test_event_count_after_undo_catalogue_creation(gui):
+    """Bug: passive_select didn't update selected_catalogues in AppState.
+
+    Sequence: create_event -> create_catalogue -> undo -> create_event
+    After undoing a catalogue creation, the undo command restores event
+    selection via passive_select (catalogue) + active_select (event).
+    But passive_select didn't update selected_catalogues, so the state
+    still pointed to the deleted catalogue's UUID. The next NewEvent
+    would then try to add an event to a non-existent catalogue.
+    """
+    from tests.fuzzing.introspect import visible_event_count
+    from tscat_gui.undo import NewCatalogue, NewEvent
+
+    gui.state.push_undo_command(NewCatalogue)
+    settle(500)
+
+    gui.state.push_undo_command(NewEvent)
+    settle(500)
+    assert visible_event_count(gui) == 1
+
+    gui.state.push_undo_command(NewCatalogue)
+    settle(500)
+    assert visible_event_count(gui) == 0
+
+    gui.state.undo_stack().undo()
+    settle(500)
+    assert visible_event_count(gui) == 1
+
+    gui.state.push_undo_command(NewEvent)
+    settle(500)
+    assert visible_event_count(gui) == 2

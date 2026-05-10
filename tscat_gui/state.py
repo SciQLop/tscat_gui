@@ -54,6 +54,8 @@ class AppState(QtCore.QObject):
                     self._select_state.selected_catalogues = uuids[:]
             else:
                 log.debug(f'already active "{uuids}"')
+        elif action == 'passive_select' and ty == tscat._Catalogue:
+            self._select_state.selected_catalogues = uuids[:]
 
         log.debug(f'app-state-updated action:{action}, type:{ty}, uuids:{uuids}')
         self.state_changed.emit(action, ty, uuids)

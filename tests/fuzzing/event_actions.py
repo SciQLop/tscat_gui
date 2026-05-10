@@ -74,7 +74,8 @@ def add_event_to_catalogue(gui: TSCatGUI, model: AppModel, eidx: int, cidx: int)
     strategies={"idx": st.integers(min_value=0, max_value=999)},
     model_update=lambda model, uuid: (
         model.trashed.add(uuid),
-        model.selected_events.remove(uuid) if uuid in model.selected_events else None,
+        model.selected_events.clear(),
+        model.selected_events.append(uuid),
     ),
     verify=_verify_event_count,
     precondition=lambda model: model.has_events,
