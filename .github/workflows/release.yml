@@ -13,10 +13,7 @@ jobs:
       uses: astral-sh/setup-uv@v5
     - name: Build
       run: uv build
-    - name: Publish
+    - name: Publish to PyPI
       env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-      run: |
-        uv pip install twine
-        twine upload dist/*
+        UV_PUBLISH_TOKEN: ${{ secrets.PYPI_PASSWORD }}
+      run: uv publish
