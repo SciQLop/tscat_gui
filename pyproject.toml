@@ -1,6 +1,6 @@
 [project]
 name = "tscat_gui"
-version = "0.6.0"
+version = "0.7.0"
 description = "Time-series catalogue - graphical user interface."
 keywords = ["satellite", "plasma-physics", "nasa-data", "amda", "cdpp", "SciQLop"]
 authors = [
