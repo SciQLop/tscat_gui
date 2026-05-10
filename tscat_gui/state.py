@@ -1,6 +1,6 @@
 import copy
 import dataclasses
-from typing import List, Type, Union
+from typing import List, Optional, Type, Union
 
 from PySide6 import QtCore, QtGui
 
@@ -21,8 +21,8 @@ class AppState(QtCore.QObject):
 
     undo_stack_clean_changed = QtCore.Signal(bool)
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, parent: Optional[QtCore.QObject] = None) -> None:
+        super().__init__(parent)
         self._select_state = SelectState([], tscat._Catalogue, [], [])
 
         self._undo_stack = QtGui.QUndoStack(self)
