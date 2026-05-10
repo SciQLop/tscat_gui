@@ -26,7 +26,7 @@ classifiers = [
 ]
 dependencies = [
     "PySide6",
-    "tscat==0.4.*",
+    "tscat>=0.5.1,<0.6",
 ]
 
 [project.optional-dependencies]
