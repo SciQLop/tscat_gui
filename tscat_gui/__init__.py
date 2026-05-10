@@ -73,7 +73,7 @@ class TSCatGUI(QtWidgets.QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
 
-        self.state = AppState()
+        self.state = AppState(self)
 
         from .tscat_driver.driver import tscat_driver
         tscat_driver.setParent(self)
@@ -87,6 +87,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
         self.state.state_changed.connect(self.__state_changed)
 
+    @QtCore.Slot(str, type, list)
     def __state_changed(self, action: str, type: Union[Type[_Catalogue], Type[_Event]],
                         uuids: Sequence[str]) -> None:
         if action in ['active_select', 'passive_select']:
@@ -206,6 +207,7 @@ class TSCatGUI(QtWidgets.QWidget):
 
         toolbutton.setMenu(menu)
 
+    @QtCore.Slot(int)
     def __undo_redo_index_changed(self, index: int) -> None:
         max_action_count = 10
 
